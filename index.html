@@ -28,6 +28,14 @@
  #status{margin-top:6px;color:#7a5b00;font-size:11px;min-height:14px}
  .legend{margin-top:8px;color:#555;font-size:11px;border-top:1px solid #eee;padding-top:6px}
  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
+ .hint{color:#888;font-size:10.5px;margin-top:3px;line-height:1.4}
+ .selbar{margin-top:8px;border-top:1px solid #eee;padding-top:8px}
+ .selhead{display:flex;justify-content:space-between;align-items:center;font-size:12px}
+ .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
+ .chip{display:inline-flex;align-items:center;gap:3px;padding:2px 6px;border:2px solid #333;
+   border-radius:12px;font-size:11px;font-weight:700;background:#fff}
+ .chip b{cursor:pointer;color:#c00;font-size:13px;line-height:1}
+ .selinfo{margin-top:6px;color:#333;font-size:11px}
  #panel-toggle{position:absolute;z-index:1001;top:10px;left:10px;width:42px;height:42px;
    border:none;border-radius:10px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3);
    font-size:20px;cursor:pointer;display:none}
@@ -65,6 +73,13 @@
     <button class="b" id="t-line">경계선</button>
     <button class="b on" id="t-label">통번호</button>
     <button class="b on" id="t-admin">동경계</button>
+  </div>
+  <div class="hint">통 클릭 = 단일 선택 · Ctrl+클릭(우클릭/길게) = 다중 선택</div>
+  <div id="selbar" class="selbar" style="display:none">
+    <div class="selhead"><b id="selcount">0개 통 선택됨</b>
+      <button class="b" id="sel-clear" style="height:24px;padding:0 8px">전체 해제</button></div>
+    <div id="selchips" class="chips"></div>
+    <div id="selinfo" class="selinfo"></div>
   </div>
 
   <label>지번 검색 (선택한 동 안에서)</label>
@@ -120,10 +135,17 @@ const road = f => { const m=f.properties&&f.properties.fill_method;
 const fmKor = m => ({road_match:'도로(통째 보정)',road_split:'도로(분할 보정)',
   manual_pending:'도로(수동 검토 대상)',parcel_match:'별표 지번(법적 근거)'}[m]||'');
 let mode = 'fill';
-const pStyle = f => { const a=approx(f), rd=road(f); return {
-  color:color(f.properties.통), weight:a?2:(rd?0.6:1), dashArray:a?'5 4':null,
-  fillOpacity: mode==='fill' ? (a?0.3:(rd?0.28:0.45)) : 0,
-  opacity: mode==='fill' ? (a?0.95:(rd?0.5:0.6)) : 0.9 }; };
+const selected = new Set();                  // 선택된 통 번호(현재 동 기준)
+const selActive = () => selected.size > 0;
+const pStyle = f => { const t=f.properties.통, a=approx(f), rd=road(f);
+  const on=selected.has(t), dim=selActive()&&!on;
+  return {
+    color:color(t), weight: on?2.5:(a?2:(rd?0.6:1)), dashArray:a?'5 4':null,
+    fillOpacity: mode==='fill' ? (dim?0.06:(on?0.62:(a?0.3:(rd?0.28:0.45)))) : (on?0.18:0),
+    opacity: mode==='fill' ? (dim?0.25:(on?1:(a?0.95:(rd?0.5:0.6)))) : (dim?0.25:0.9) }; };
+const tongStyle = f => { const t=f.properties.통, on=selected.has(t), dim=selActive()&&!on;
+  return { color:color(t), weight:on?5:3, dashArray:approx(f)?'5 4':null, fill:false,
+    opacity: dim?0.3:0.95 }; };
 
 // ---------- 상태 ----------
 let manifest=null, cur={parcels:null,tong:null,admin:null,labels:null}, curParcels=null;
@@ -153,6 +175,7 @@ function clearGroup(g){ for(const k in g){ if(g[k]){ map.removeLayer(g[k]); g[k]
 // ---------- 단일 동 상세 ----------
 function loadDong(code, dong){
   clearGroup(ov); clearGroup(cur); curParcels=null;
+  selected.clear(); updateSelPanel();
   setStatus(`${dong} 불러오는 중…`);
   const base = `out/${code}/${dong}`;
   Promise.all([
@@ -168,11 +191,13 @@ function loadDong(code, dong){
         : road(f)
         ? `${p.법정동} ${p.지번} <small>(도로)</small><br><b>${p.통}통</b><br><small>${fmKor(p.fill_method)}</small>`
         : `${p.법정동} ${p.지번}<br><b>${p.통}통 ${p.반}반</b>`;
-      l.bindPopup(txt); l.on('click',()=>$('res').innerHTML=txt);
+      l.bindPopup(txt);
+      l.on('click', e=>{ $('res').innerHTML=txt; const m=e.originalEvent;
+        if(m.ctrlKey||m.metaKey||m.shiftKey) toggleTong(p.통); else selectSingle(p.통); });
+      l.on('contextmenu', e=>{ L.DomEvent.preventDefault(e); $('res').innerHTML=txt; toggleTong(p.통); });
     }}).addTo(map);
     curParcels = cur.parcels;
-    cur.tong = L.geoJSON(tong,{style:f=>({color:color(f.properties.통),weight:3,
-      dashArray:approx(f)?'5 4':null,fill:false,opacity:.95})}).addTo(map);
+    cur.tong = L.geoJSON(tong,{style:tongStyle}).addTo(map);
     cur.labels = L.layerGroup();
     (tong.features||[]).forEach(f=>{ const p=f.properties;
       if(p.lat==null||p.lon==null) return;
@@ -193,6 +218,7 @@ function loadDong(code, dong){
 // ---------- 전체지도 ----------
 function showOverview(){
   clearGroup(cur); clearGroup(ov); curParcels=null;
+  selected.clear(); updateSelPanel();
   $('dong-select').value=''; setStatus('전체지도 불러오는 중…');
   Promise.all([
     fetch('out/overview/all_tong.geojson').then(r=>r.json()),
@@ -242,6 +268,31 @@ function search(){
 }
 $('go').onclick = search;
 $('q').addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
+
+// ---------- 다중 통 선택 ----------
+function selectSingle(t){ selected.clear(); selected.add(t); afterSel(); }
+function toggleTong(t){ selected.has(t) ? selected.delete(t) : selected.add(t); afterSel(); }
+function clearSelection(){ selected.clear(); afterSel(); }
+function afterSel(){
+  if(cur.parcels) cur.parcels.setStyle(pStyle);
+  if(cur.tong) cur.tong.setStyle(tongStyle);
+  updateSelPanel();
+}
+function updateSelPanel(){
+  const bar=$('selbar'); if(!bar) return;
+  if(!selActive()){ bar.style.display='none'; return; }
+  bar.style.display='block';
+  const arr=[...selected].sort((a,b)=>a-b);
+  $('selcount').textContent = `${arr.length}개 통 선택됨`;
+  $('selchips').innerHTML = arr.map(t=>
+    `<span class="chip" style="border-color:${color(t)}">${t}통<b data-t="${t}">×</b></span>`).join('');
+  $('selchips').querySelectorAll('b[data-t]').forEach(x=>
+    x.onclick = ()=>{ selected.delete(+x.dataset.t); afterSel(); });
+  let nParcel=0;
+  if(cur.parcels) cur.parcels.eachLayer(l=>{ if(selected.has(l.feature.properties.통)) nParcel++; });
+  $('selinfo').textContent = `통 ${arr.join(', ')} · 필지 합계 ${nParcel}개`;
+}
+$('sel-clear').onclick = clearSelection;
 
 // ---------- 모바일 패널 ----------
 $('panel-toggle').onclick = ()=> $('panel').classList.toggle('open');
