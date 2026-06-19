@@ -41,6 +41,12 @@ SOURCE_CRS_FALLBACK = "EPSG:5186"   # .prj 없을 때 가정 (중부원점 GRS80
 CONFLICT_POLICY = "min_tong"   # 충돌 시 낮은 통 번호 우선
 BONBUN_FALLBACK = True         # 본번만 적힌 표 항목 → 해당 본번 전체 부번을 같은 통으로
 SPLIT_PARCEL_TONG = []         # (법정동, 본번, 분할위도, 남통, 북통, 설명) — 지번없는 아파트통 도로분할
+# --- 2단계: 도로 경계 보정 ---
+ROAD_FILL = False              # 도로(지목 도) 필지를 인접 통에 배분할지
+ROAD_JIMOK = ["도"]            # 도로로 간주할 지목(연속지적도 JIBUN 끝 한글)
+ROAD_SLIVER_M2 = 5.0           # 분할 조각 최소 면적(미만 슬리버는 버림)
+ADJ_BUF_M = 0.5               # 인접 판정 버퍼(미터, source CRS 기준)
+BOUND_STEP_M = 3.0            # 분할 시 도로 경계 점 샘플 간격(미터)
 # ==========================================================
 
 REQUIRED_CONFIG_KEYS = ["admin_dong", "admin_code", "legal_dongs",
@@ -62,6 +68,7 @@ def apply_config(cfg, shp_path, out_root):
     global TABLE_CSV, SHP_PATH, OUT_DIR, ADMIN_DONG, ADMIN_CODE
     global TARGET_BEOPJEONG, BJD_CODE_TO_NAME, SHP_ENCODING, SOURCE_CRS_FALLBACK
     global CONFLICT_POLICY, BONBUN_FALLBACK, SPLIT_PARCEL_TONG
+    global ROAD_FILL, ROAD_JIMOK, ROAD_SLIVER_M2
     ADMIN_DONG = cfg["admin_dong"]
     ADMIN_CODE = str(cfg["admin_code"])
     TABLE_CSV  = cfg["table_csv"]
@@ -77,6 +84,9 @@ def apply_config(cfg, shp_path, out_root):
          int(s["south_tong"]), int(s["north_tong"]), s.get("desc", ""))
         for s in cfg.get("split_parcel_tong", [])
     ]
+    ROAD_FILL      = bool(cfg.get("road_fill", False))
+    ROAD_JIMOK     = list(cfg.get("road_jimok", ["도"]))
+    ROAD_SLIVER_M2 = float(cfg.get("road_split_sliver_m2", 5.0))
     OUT_DIR = os.path.join(out_root, ADMIN_CODE)
     os.makedirs(OUT_DIR, exist_ok=True)
     print(f"config loaded: {ADMIN_DONG}/{ADMIN_CODE}  "
@@ -219,6 +229,118 @@ def load_admin_outline():
     a = a[a["ADM_CD"].astype(str) == ADMIN_CODE]
     return a.to_crs("EPSG:4326")[["geometry"]] if len(a) else None
 
+# ---------- 2.5 도로 경계 보정 (2단계) ----------
+def jimok(jibun):
+    """연속지적도 JIBUN 끝의 지목 한글 추출. 예: '1-183 대'→'대', '39-18전'→'전'."""
+    m = re.search(r'([가-힣]+)\s*$', str(jibun).strip())
+    return m.group(1) if m else ""
+
+def _polys_only(geom):
+    """교집합 결과에서 폴리곤 성분만 남긴다(라인/점 제거)."""
+    from shapely.geometry.base import BaseMultipartGeometry
+    from shapely.geometry import Polygon, MultiPolygon
+    from shapely.ops import unary_union
+    if geom.is_empty:
+        return None
+    if isinstance(geom, (Polygon, MultiPolygon)):
+        return geom
+    if isinstance(geom, BaseMultipartGeometry):
+        parts = [g for g in geom.geoms if isinstance(g, (Polygon, MultiPolygon))]
+        return unary_union(parts) if parts else None
+    return None
+
+def _split_road_by_nearest(road, near_geoms, near_tongs, sliver):
+    """도로 폴리곤을 '인접 배정필지까지의 거리(최근접)' 기준으로 통별 분할.
+    near_geoms/near_tongs: 인접 주거필지 geometry/통(같은 길이). 반환 [(통,geometry)...] 또는 None."""
+    from shapely.ops import voronoi_diagram, unary_union
+    from shapely.geometry import MultiPoint
+    from shapely import STRtree
+    boundary = road.boundary
+    n = int(boundary.length // BOUND_STEP_M)
+    n = max(min(n, 1200), 12)                       # 샘플 점 개수 상·하한
+    ftree = STRtree(near_geoms)
+    pts, labs = [], []
+    for i in range(n):
+        p = boundary.interpolate(i / n, normalized=True)
+        labs.append(near_tongs[int(ftree.nearest(p))])  # 최근접 인접필지의 통
+        pts.append(p)
+    if len(set(labs)) == 1:                          # 사실상 한 통만 인접
+        return [(labs[0], road)]
+    try:
+        cells = voronoi_diagram(MultiPoint(pts), envelope=road)
+    except Exception:
+        return None
+    stree = STRtree(pts)
+    from collections import defaultdict
+    byt = defaultdict(list)
+    for cell in cells.geoms:
+        hit = stree.query(cell, predicate="contains")
+        lab = labs[int(hit[0])] if len(hit) else labs[int(stree.nearest(cell.representative_point()))]
+        piece = _polys_only(cell.intersection(road))
+        if piece is not None:
+            byt[lab].append(piece)
+    out = []
+    for t, gs in byt.items():
+        g = unary_union(gs)
+        if not g.is_empty and g.area >= sliver:
+            out.append((t, g))
+    return out or None
+
+def assign_roads(sub, matched):
+    """미배정 도로(지목 도) 필지를 인접 배정 통에 배분.
+    sub/matched: source CRS(미터). 반환: (도로 GeoDataFrame[통,반,_dong,_jib,_fill,geometry] | None, 통계 dict)."""
+    import geopandas as gpd
+    from shapely import STRtree
+    roads = sub[sub["통"].isna()].copy()
+    if "JIBUN" in roads.columns:
+        roads = roads[roads["JIBUN"].map(jimok).isin(ROAD_JIMOK)].copy()
+    else:
+        roads = roads.iloc[0:0]
+    stats = {"roads": int(len(roads)), "simple": 0, "split": 0, "hold": 0}
+    if roads.empty:
+        return None, stats
+    res = matched[["통", "geometry"]].copy()
+    res["통"] = res["통"].astype(int)
+    res = res.reset_index(drop=True)
+    res_geoms, res_tongs = list(res.geometry), list(res["통"])
+    res_tree = STRtree(res_geoms)
+
+    roads = roads.reset_index(drop=True)
+    roads["rid"] = range(len(roads))
+    rb = roads[["rid", "geometry"]].copy()
+    rb["geometry"] = rb.buffer(ADJ_BUF_M)
+    j = gpd.sjoin(rb, res[["통", "geometry"]], predicate="intersects", how="inner")
+    adj = j.groupby("rid")["통"].agg(lambda s: sorted({int(x) for x in s}))
+
+    rows = []
+    for rid, dong, jib, geom in zip(roads["rid"], roads["_dong"], roads["_jib"], roads.geometry):
+        tongs = adj.get(rid)
+        if not tongs:
+            stats["hold"] += 1
+            continue
+        if len(tongs) == 1:
+            rows.append((tongs[0], 0, dong, jib, "road_match", geom))
+            stats["simple"] += 1
+            continue
+        idx = res_tree.query(geom.buffer(ADJ_BUF_M), predicate="intersects")
+        ng = [res_geoms[i] for i in idx if res_tongs[i] in tongs]
+        nt = [res_tongs[i] for i in idx if res_tongs[i] in tongs]
+        pieces = _split_road_by_nearest(geom, ng, nt, ROAD_SLIVER_M2) if ng else None
+        if pieces is None:
+            rows.append((tongs[0], 0, dong, jib, "manual_pending", geom))
+        else:
+            for t, g in pieces:
+                rows.append((t, 0, dong, jib, "road_split", g))
+            stats["split"] += 1
+
+    if not rows:
+        return None, stats
+    rgdf = gpd.GeoDataFrame(
+        [{"통": t, "반": b, "_dong": d, "_jib": jb, "_fill": fm, "geometry": g}
+         for (t, b, d, jb, fm, g) in rows],
+        geometry="geometry", crs=matched.crs)
+    return rgdf, stats
+
 # ---------- 3. 메인 ----------
 def main():
     import geopandas as gpd
@@ -357,6 +479,21 @@ def main():
             f"{OUT_DIR}/report_missing_tong.csv", index=False, encoding="utf-8-sig")
         print("   미표시 통:", ", ".join(f"{t}통({why})" for t,_,why in miss_rows))
 
+    # 법적근거(별표 지번) 구간 표시. 도로 보정 조각은 assign_roads가 별도 _fill 부여.
+    matched["_fill"] = "parcel_match"
+    if ROAD_FILL:
+        print("▶ 4.5) 도로 경계 보정")
+        road_gdf, rstats = assign_roads(sub, matched)
+        print(f"   도로필지 {rstats['roads']} → 단순배정 {rstats['simple']}, "
+              f"분할 {rstats['split']}, 보류(미접) {rstats['hold']}")
+        if road_gdf is not None and len(road_gdf):
+            src_crs = matched.crs
+            matched = gpd.GeoDataFrame(
+                pd.concat([matched, road_gdf], ignore_index=True),
+                geometry="geometry", crs=src_crs)
+            road_gdf.drop(columns="geometry").to_csv(
+                f"{OUT_DIR}/report_roads.csv", index=False, encoding="utf-8-sig")
+
     print("▶ 5) 4326 변환 + 통 단위 병합 + 행정동 외곽선")
     matched = matched.to_crs("EPSG:4326")
     matched["통"] = matched["통"].astype(int)
@@ -381,7 +518,7 @@ def main():
         if len(bad):
             bad[["통","_dong","_jib"]].rename(columns={"_dong":"법정동","_jib":"지번"}).to_csv(
                 f"{OUT_DIR}/report_outside_admin.csv", index=False, encoding="utf-8-sig")
-            outside_tongs = sorted(bad["통"].astype(int).unique())
+            outside_tongs = sorted(int(t) for t in bad["통"].unique())
             print(f"   ⚠ 행정동 밖 필지 {len(bad)}개 (통 {outside_tongs}) → report_outside_admin.csv")
     else:
         admin = sub.to_crs("EPSG:4326")[["geometry"]].copy()
@@ -390,8 +527,8 @@ def main():
         admin_gdf["geometry"] = admin_gdf.buffer(0)
         print("   행정동 외곽선: 대상필지 병합(행정동경계 파일 없음)")
 
-    parcels_out = matched[["통","반","_dong","_jib","geometry"]].rename(
-        columns={"_dong":"법정동","_jib":"지번"})
+    parcels_out = matched[["통","반","_dong","_jib","_fill","geometry"]].rename(
+        columns={"_dong":"법정동","_jib":"지번","_fill":"fill_method"})
     tong_gdf["근사"] = 0
     parcels_out["근사"] = 0
 
@@ -413,7 +550,8 @@ def main():
             add_t.append({"통": tong, "geometry": geom,
                           "lon": round(rp.x, 7), "lat": round(rp.y, 7), "근사": 1})
             add_p.append({"통": tong, "반": 0, "법정동": dong,
-                          "지번": f"{bon}({half}·근사분할)", "geometry": geom, "근사": 1})
+                          "지번": f"{bon}({half}·근사분할)", "fill_method": "road_split",
+                          "geometry": geom, "근사": 1})
         print(f"   분할 추가: {dong} {bon} → {s_tong}통(남)/{n_tong}통(북)")
     if add_t:
         tong_gdf = pd.concat([tong_gdf, gpd.GeoDataFrame(add_t, crs="EPSG:4326")],
@@ -476,6 +614,10 @@ const TONG = __TONG__;
 const ADMIN = __ADMIN__;
 function color(t){const h=(t*47)%360;return `hsl(${h},65%,55%)`;}
 const approx=f=>!!(f.properties&&f.properties.근사);
+const road=f=>{const m=f.properties&&f.properties.fill_method;
+  return m==='road_match'||m==='road_split'||m==='manual_pending';};
+const fmKor=m=>({road_match:'도로(통째 보정)',road_split:'도로(분할 보정)',
+  manual_pending:'도로(수동 검토 대상)',parcel_match:'별표 지번(법적 근거)'}[m]||'');
 // +/- 줌버튼이 좌상단 패널과 겹치지 않게 우상단으로 이동
 const map=L.map('map',{zoomControl:false});
 L.control.zoom({position:'topright'}).addTo(map);
@@ -486,15 +628,19 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
 const admin=L.geoJSON(ADMIN,{style:{color:'#111',weight:4,fill:false,opacity:0.85}}).addTo(map);
 
 let mode='fill';
-const pStyle=f=>({color:color(f.properties.통),weight:approx(f)?2:1,
-  dashArray:approx(f)?'5 4':null,
-  fillOpacity:mode==='fill'?(approx(f)?0.3:0.45):0,
-  opacity:mode==='fill'?(approx(f)?0.95:0.6):0.9});
+const pStyle=f=>{const a=approx(f),rd=road(f);return{
+  color:color(f.properties.통),weight:a?2:(rd?0.6:1),
+  dashArray:a?'5 4':null,
+  fillOpacity:mode==='fill'?(a?0.3:(rd?0.28:0.45)):0,
+  opacity:mode==='fill'?(a?0.95:(rd?0.5:0.6)):0.9};};
 const parcels=L.geoJSON(PARCELS,{style:pStyle,onEachFeature:(f,l)=>{
   const p=f.properties;
   const txt = approx(f)
     ? `<b>${p.통}통 (근사 분할)</b><br>${p.법정동} ${p.지번}<br>`+
       `<small>별표에 지번이 없어 실제 필지를 도로 기준으로 분할한 추정치</small>`
+    : road(f)
+    ? `${p.법정동} ${p.지번} <small>(도로)</small><br><b>${p.통}통</b><br>`+
+      `<small>${fmKor(p.fill_method)}</small>`
     : `거모/군자 ${p.법정동} ${p.지번}<br><b>${p.통}통 ${p.반}반</b>`;
   l.bindPopup(txt);
   l.on('click',()=>{document.getElementById('res').innerHTML=txt;});
@@ -556,6 +702,10 @@ if __name__ == "__main__":
                     help=f"연속지적도 SHP 경로 (기본 {DEFAULT_SHP_PATH})")
     ap.add_argument("--out-dir", default="out",
                     help="출력 루트 (실제 출력은 {out-dir}/{admin_code}/ 아래)")
+    ap.add_argument("--no-road-fill", action="store_true",
+                    help="도로 경계 보정(2단계)을 끄고 빌드 — 1단계 동일 재현 회귀 검증용")
     args = ap.parse_args()
     apply_config(load_config(args.config), args.shp, args.out_dir)
+    if args.no_road_fill:
+        ROAD_FILL = False
     main()
