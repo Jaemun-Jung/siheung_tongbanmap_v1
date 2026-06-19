@@ -3,64 +3,84 @@
 """
 시흥시 통반경계도 빌드 파이프라인  (군자동 행정동부터)
 ------------------------------------------------------------
-입력 : 1) 통·반 표 CSV  (행정동,통,반,관할구역)  -- 이미 추출됨
-       2) 연속지적도 SHP (시흥시)               -- 사용자가 다운로드
-출력 : gunja_parcels.geojson, gunja_tong.geojson,
-       리포트 CSV(미매칭/충돌), gunja_map.html (단독 실행 인터랙티브 지도)
+입력 : 1) 통·반 표 CSV   data/{행정동코드}/관할구역.csv      (config.table_csv)
+       2) 연속지적도 SHP (시흥시, 도시 단위 1개)            -- 사용자 다운로드 (--shp)
+       3) 동별 설정      data/{행정동코드}/config.json        (--config)
+출력 : out/{행정동코드}/{동명}_parcels.geojson, {동명}_tong.geojson, {동명}_admin.geojson,
+       리포트 CSV(미매칭/충돌), {동명}_map.html (단독 실행 인터랙티브 지도)
 
 실행 환경 : geopandas / shapely / pyproj 필요 (이 채팅 샌드박스 아님 → Claude Code/로컬)
 사용법 : 1) pip install -r requirements.txt
-        2) 아래 CONFIG에서 SHP_PATH 설정
-        3) python build_tongban_map.py
-        4) 처음엔 SHP 컬럼 스키마가 출력됨 → 필드명이 자동탐지와 다르면 CONFIG 수정 후 재실행
+        2) python build_tongban_map.py --config data/31150680/config.json --shp <연속지적도.shp>
+        3) 처음엔 SHP 컬럼 스키마가 출력됨 → 필드명이 자동탐지와 다르면 *_FIELD_CANDIDATES 수정 후 재실행
 """
 
 import os, re, sys, json
 from collections import defaultdict
 
-# ===================== CONFIG =====================
-TABLE_CSV  = "군자동_통반_관할구역.csv"
-SHP_PATH   = "LSMD_CONT_LDREG_41390_202606.shp"   # 시흥시(41390) 연속지적도 2026.06
+# ===================== 설정(공유 기본값) =====================
+# 동별 값은 config.json 에서 로드(--config). 아래는 출처가 같은 '도시 단위' 기본값만 남긴다.
+DEFAULT_SHP_PATH = "LSMD_CONT_LDREG_41390_202606.shp"   # 시흥시(41390) 연속지적도 2026.06
 
 # 연속지적도 필드명 (출처마다 다름). 자동탐지하되 필요시 직접 지정.
 PNU_FIELD_CANDIDATES   = ["PNU", "pnu", "A1", "ADDR_PNU", "pnu_cd"]
 JIBUN_FIELD_CANDIDATES = ["JIBUN", "jibun", "지번", "A5", "BONBUN", "ADDR"]
 BJDNAME_FIELD_CANDIDATES = ["EMD_NM", "EMD_KOR_NM", "LDONG_NM", "법정동명", "DONG_NM", "ADM_NM"]
 
-TARGET_BEOPJEONG = ["거모동", "군자동"]   # 군자동 행정동이 관할하는 법정동
-
-# 연속지적도엔 법정동'명' 필드가 없고 PNU 앞10자리(법정동코드)만 있음.
-# 코드→법정동명 매핑. 행정동경계 폴리곤 내부 포함 + 표지번 겹침으로 공간검증 확정.
-# (주의: 작은 본번이 타 법정동과 우연히 겹칠 수 있어 '지번 겹침'만으로는 오매칭 가능)
-BJD_CODE_TO_NAME = {
-    "4139012700": "거모동",
-    "4139012800": "군자동",   # 4139010300(0% 내부) 오류 → 4139012800(72.9% 내부)로 정정
-}
-
-# 행정동 경계(선택): 있으면 공식 '군자동 행정동' 폴리곤을 외곽선+검증에 사용.
+# 행정동경계 파일(도시 단위 1개). 동별로는 ADM_CD(=config.admin_code)만 달라진다.
 ADMIN_SHP_GLOB = "shp_admin/*.shp"
 ADMIN_ZIP_GLOB = "*행정동경계*.zip"
-GUNJA_ADM_CD   = "31150680"        # 군자동 행정동 코드(행정동경계 파일 ADM_CD)
-SHP_ENCODING = "cp949"                    # 한글 깨지면 'utf-8' 또는 'euc-kr' 시도
-SOURCE_CRS_FALLBACK = "EPSG:5186"         # .prj 없을 때 가정 (중부원점 GRS80)
 
-OUT_DIR = "out"
-CONFLICT_POLICY = "min_tong"              # 충돌 시 낮은 통 번호 우선
-# 별표는 '본번 범위'(예: 1659~1669)인데 지적도는 부번분할(1659-1,-2…)이라 정확매칭이 빠짐.
-# 본번만 적힌(부번 없는) 표 항목에 한해, 그 본번의 모든 부번 필지를 같은 통으로 채움.
-# 단일 통으로만 귀속될 때(충돌 없을 때)만 적용 → 빈 구역 보완, 오배정 방지.
-BONBUN_FALLBACK = True
+# ↓↓ 아래 전역값은 apply_config()가 config.json 으로 런타임에 채운다. ↓↓
+TABLE_CSV = SHP_PATH = OUT_DIR = None
+ADMIN_DONG = ADMIN_CODE = None
+TARGET_BEOPJEONG = []          # 행정동이 관할하는 법정동 목록
+BJD_CODE_TO_NAME = {}          # 법정동코드10 → 법정동명 (공간검증으로 확정)
+SHP_ENCODING = "cp949"         # 한글 깨지면 config에서 'utf-8'/'euc-kr'
+SOURCE_CRS_FALLBACK = "EPSG:5186"   # .prj 없을 때 가정 (중부원점 GRS80)
+CONFLICT_POLICY = "min_tong"   # 충돌 시 낮은 통 번호 우선
+BONBUN_FALLBACK = True         # 본번만 적힌 표 항목 → 해당 본번 전체 부번을 같은 통으로
+SPLIT_PARCEL_TONG = []         # (법정동, 본번, 분할위도, 남통, 북통, 설명) — 지번없는 아파트통 도로분할
+# ==========================================================
 
-# 별표에 '지번'이 없는 아파트 통(서희스타힐스)을, 실제 토지 필지를
-# '도로(근사 위도)' 기준으로 남/북으로 갈라 통 폴리곤으로 표시.
-# (법정동, 본번, 분할위도, 남쪽통, 북쪽통, 설명)  ※위치: Nominatim 지오코딩으로 거모동 1859 확정.
-SPLIT_PARCEL_TONG = [
-    ("거모동", "1859", 37.3638, 31, 32,
-     "군자서희스타힐스(916세대) — 중앙 도로 기준 남=31통(101~108동)/북=32통(109~115동)"),
-]
-# ==================================================
+REQUIRED_CONFIG_KEYS = ["admin_dong", "admin_code", "legal_dongs",
+                        "target_beopjeong", "table_csv"]
 
-os.makedirs(OUT_DIR, exist_ok=True)
+def load_config(path):
+    """config.json 로드 → 필수키 검증 → table_csv를 config 폴더 기준 절대경로로 해석."""
+    with open(path, encoding="utf-8") as f:
+        cfg = json.load(f)
+    missing = [k for k in REQUIRED_CONFIG_KEYS if k not in cfg]
+    if missing:
+        sys.exit(f"⚠ config 필수 항목 누락: {missing}  ({path})")
+    cfg_dir = os.path.dirname(os.path.abspath(path))
+    cfg["table_csv"] = os.path.join(cfg_dir, cfg["table_csv"])
+    return cfg
+
+def apply_config(cfg, shp_path, out_root):
+    """config 값을 모듈 전역으로 주입하고 출력 폴더 out/{admin_code}/ 를 만든다."""
+    global TABLE_CSV, SHP_PATH, OUT_DIR, ADMIN_DONG, ADMIN_CODE
+    global TARGET_BEOPJEONG, BJD_CODE_TO_NAME, SHP_ENCODING, SOURCE_CRS_FALLBACK
+    global CONFLICT_POLICY, BONBUN_FALLBACK, SPLIT_PARCEL_TONG
+    ADMIN_DONG = cfg["admin_dong"]
+    ADMIN_CODE = str(cfg["admin_code"])
+    TABLE_CSV  = cfg["table_csv"]
+    SHP_PATH   = shp_path
+    TARGET_BEOPJEONG = list(cfg["target_beopjeong"])
+    BJD_CODE_TO_NAME = {str(k): v for k, v in cfg["legal_dongs"].items()}
+    SHP_ENCODING        = cfg.get("shp_encoding", "cp949")
+    SOURCE_CRS_FALLBACK = cfg.get("source_crs_fallback", "EPSG:5186")
+    CONFLICT_POLICY     = cfg.get("conflict_policy", "min_tong")
+    BONBUN_FALLBACK     = cfg.get("bonbun_fallback", True)
+    SPLIT_PARCEL_TONG = [
+        (s["dong"], str(s["bonbun"]), float(s["split_lat"]),
+         int(s["south_tong"]), int(s["north_tong"]), s.get("desc", ""))
+        for s in cfg.get("split_parcel_tong", [])
+    ]
+    OUT_DIR = os.path.join(out_root, ADMIN_CODE)
+    os.makedirs(OUT_DIR, exist_ok=True)
+    print(f"config loaded: {ADMIN_DONG}/{ADMIN_CODE}  "
+          f"(CSV={os.path.basename(TABLE_CSV)}, SHP={SHP_PATH}, OUT={OUT_DIR})")
 
 # ---------- 1. 지번 전개 로직 (실데이터로 검증 완료) ----------
 APT = re.compile(r'아파트|Ⓐ|상가|\d+호|\(')
@@ -196,7 +216,7 @@ def load_admin_outline():
     except Exception as e:
         print("   (행정동경계 읽기 실패:", e, ")")
         return None
-    a = a[a["ADM_CD"].astype(str) == GUNJA_ADM_CD]
+    a = a[a["ADM_CD"].astype(str) == ADMIN_CODE]
     return a.to_crs("EPSG:4326")[["geometry"]] if len(a) else None
 
 # ---------- 3. 메인 ----------
@@ -214,6 +234,10 @@ def main():
             f"{OUT_DIR}/report_parse_failed.csv", index=False, encoding="utf-8-sig")
 
     print("▶ 2) 연속지적도 로드")
+    if not os.path.exists(SHP_PATH):
+        sys.exit(f"⚠ 연속지적도 SHP 없음: {SHP_PATH}\n"
+                 f"  README '준비물' 참고 → 시흥시(41390) 연속지적도(.shp/.shx/.dbf/.prj)를 받아 "
+                 f"--shp 로 지정하세요. (위 1단계 표 전개는 정상 동작 확인됨)")
     gdf = gpd.read_file(SHP_PATH, encoding=SHP_ENCODING)
     if gdf.crs is None:
         gdf.set_crs(SOURCE_CRS_FALLBACK, inplace=True)
@@ -348,7 +372,7 @@ def main():
     if admin_official is not None:
         admin_gdf = admin_official.dissolve().reset_index(drop=True)
         admin_gdf["geometry"] = admin_gdf.buffer(0)
-        print("   행정동 외곽선: 공식 행정동경계 사용(ADM_CD", GUNJA_ADM_CD + ")")
+        print("   행정동 외곽선: 공식 행정동경계 사용(ADM_CD", ADMIN_CODE + ")")
         # 검증: 매칭 필지가 행정동 경계 안에 드는지(코드 매핑 오류 탐지)
         gp = admin_gdf.geometry.iloc[0]
         inside = matched.representative_point().within(gp).mean()
@@ -397,20 +421,20 @@ def main():
         parcels_out = pd.concat([parcels_out, gpd.GeoDataFrame(add_p, crs="EPSG:4326")],
                                 ignore_index=True)
 
-    parcels_out.to_file(f"{OUT_DIR}/gunja_parcels.geojson", driver="GeoJSON")
-    tong_gdf.to_file(f"{OUT_DIR}/gunja_tong.geojson", driver="GeoJSON")
-    admin_gdf.to_file(f"{OUT_DIR}/gunja_admin.geojson", driver="GeoJSON")
+    parcels_out.to_file(f"{OUT_DIR}/{ADMIN_DONG}_parcels.geojson", driver="GeoJSON")
+    tong_gdf.to_file(f"{OUT_DIR}/{ADMIN_DONG}_tong.geojson", driver="GeoJSON")
+    admin_gdf.to_file(f"{OUT_DIR}/{ADMIN_DONG}_admin.geojson", driver="GeoJSON")
 
     print("▶ 6) 인터랙티브 지도 생성")
     write_map(parcels_out.to_json(), tong_gdf.to_json(), admin_gdf.to_json(),
-              f"{OUT_DIR}/gunja_map.html")
-    print("✔ 완료 →", OUT_DIR, "(gunja_map.html 더블클릭)")
+              f"{OUT_DIR}/{ADMIN_DONG}_map.html", f"{ADMIN_DONG} 통반경계도")
+    print("✔ 완료 →", OUT_DIR, f"({ADMIN_DONG}_map.html 더블클릭)")
 
 # ---------- 4. 단독 실행 Leaflet 지도 ----------
-def write_map(parcels_geojson, tong_geojson, admin_geojson, path):
+def write_map(parcels_geojson, tong_geojson, admin_geojson, path, title="통반경계도"):
     html = """<!DOCTYPE html><html lang="ko"><head><meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>군자동 통반경계도</title>
+<title>__TITLE__</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
  body{margin:0;font-family:-apple-system,"Apple SD Gothic Neo",sans-serif}
@@ -432,7 +456,7 @@ def write_map(parcels_geojson, tong_geojson, admin_geojson, path):
    box-shadow:0 1px 2px rgba(0,0,0,.4)}
 </style></head><body>
 <div class="panel">
- <b>군자동 통반경계도</b>
+ <b>__TITLE__</b>
  <input id="q" placeholder="지번 입력 (예: 491, 1769-1)"/>
  <div>
   <button id="go">조회</button>
@@ -516,10 +540,22 @@ document.getElementById('go').onclick=()=>{
 };
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('go').click();});
 </script></body></html>"""
-    html = (html.replace("__PARCELS__", parcels_geojson)
+    html = (html.replace("__TITLE__", title)
+                .replace("__PARCELS__", parcels_geojson)
                 .replace("__TONG__", tong_geojson)
                 .replace("__ADMIN__", admin_geojson))
     open(path, "w", encoding="utf-8").write(html)
 
 if __name__ == "__main__":
+    import argparse
+    ap = argparse.ArgumentParser(
+        description="시흥시 통반경계도 빌드 (동별 config.json 기반)")
+    ap.add_argument("--config", required=True,
+                    help="동별 config.json 경로 (예: data/31150680/config.json)")
+    ap.add_argument("--shp", default=DEFAULT_SHP_PATH,
+                    help=f"연속지적도 SHP 경로 (기본 {DEFAULT_SHP_PATH})")
+    ap.add_argument("--out-dir", default="out",
+                    help="출력 루트 (실제 출력은 {out-dir}/{admin_code}/ 아래)")
+    args = ap.parse_args()
+    apply_config(load_config(args.config), args.shp, args.out_dir)
     main()

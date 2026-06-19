@@ -1,0 +1,25 @@
+{
+  "admin_dong": "군자동",
+  "admin_code": "31150680",
+  "legal_dongs": {
+    "4139012700": "거모동",
+    "4139012800": "군자동"
+  },
+  "target_beopjeong": ["거모동", "군자동"],
+  "table_csv": "관할구역.csv",
+  "source_crs_fallback": "EPSG:5186",
+  "shp_encoding": "cp949",
+  "conflict_policy": "min_tong",
+  "bonbun_fallback": true,
+  "palette": "default",
+  "split_parcel_tong": [
+    {
+      "dong": "거모동",
+      "bonbun": "1859",
+      "split_lat": 37.3638,
+      "south_tong": 31,
+      "north_tong": 32,
+      "desc": "군자서희스타힐스(916세대) — 중앙 도로 기준 남=31통(101~108동)/북=32통(109~115동)"
+    }
+  ]
+}
