@@ -1,0 +1,24 @@
+{
+  "admin_dong": "장곡동",
+  "admin_code": "31150710",
+  "legal_dongs": {
+    "4139012900": "장현동",
+    "4139013000": "장곡동"
+  },
+  "target_beopjeong": [
+    "장곡동",
+    "장현동"
+  ],
+  "table_csv": "관할구역.csv",
+  "source_crs_fallback": "EPSG:5186",
+  "shp_encoding": "cp949",
+  "conflict_policy": "min_tong",
+  "bonbun_fallback": true,
+  "road_fill": true,
+  "road_jimok": [
+    "도"
+  ],
+  "road_split_sliver_m2": 5.0,
+  "palette": "default",
+  "split_parcel_tong": []
+}

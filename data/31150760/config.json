@@ -1,0 +1,22 @@
+{
+  "admin_dong": "거북섬동",
+  "admin_code": "31150760",
+  "legal_dongs": {
+    "4139013200": "정왕동"
+  },
+  "target_beopjeong": [
+    "정왕동"
+  ],
+  "table_csv": "관할구역.csv",
+  "source_crs_fallback": "EPSG:5186",
+  "shp_encoding": "cp949",
+  "conflict_policy": "min_tong",
+  "bonbun_fallback": true,
+  "road_fill": true,
+  "road_jimok": [
+    "도"
+  ],
+  "road_split_sliver_m2": 5.0,
+  "palette": "default",
+  "split_parcel_tong": []
+}

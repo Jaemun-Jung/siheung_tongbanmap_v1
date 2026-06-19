@@ -1,0 +1,26 @@
+{
+  "admin_dong": "매화동",
+  "admin_code": "31150550",
+  "legal_dongs": {
+    "4139010800": "매화동",
+    "4139010900": "도창동",
+    "4139011000": "금이동"
+  },
+  "target_beopjeong": [
+    "금이동",
+    "도창동",
+    "매화동"
+  ],
+  "table_csv": "관할구역.csv",
+  "source_crs_fallback": "EPSG:5186",
+  "shp_encoding": "cp949",
+  "conflict_policy": "min_tong",
+  "bonbun_fallback": true,
+  "road_fill": true,
+  "road_jimok": [
+    "도"
+  ],
+  "road_split_sliver_m2": 5.0,
+  "palette": "default",
+  "split_parcel_tong": []
+}
