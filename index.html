@@ -120,11 +120,12 @@
   <div style="font-size:11px;color:#555;margin-top:4px">채우기 투명도
     <input type="range" id="fa" min="0.1" max="0.85" step="0.05" style="width:100%;margin-top:2px"></div>
 
-  <label>지번 검색 (선택한 동 안에서)</label>
+  <label>주소 검색 (도로명·지번)</label>
   <div class="row tight">
-    <input id="q" placeholder="예: 491, 1769-1" style="flex:1"/>
+    <input id="q" placeholder="마유로20번길 35 / 지번: 491" style="flex:1"/>
     <button class="b" id="go">조회</button>
   </div>
+  <div class="hint">도로명(로·길 포함)은 전 동 검색 · 지번은 현재 동 안</div>
 
   <div id="res">행정동을 선택하거나 전체지도를 보세요.</div>
   <div id="status"></div>
@@ -141,6 +142,7 @@
 <script>
 // ===== 브이월드 자리(키 발급 후 입력하면 위성/지적편집도 활성) =====
 const VWORLD_KEY = "";  // https://www.vworld.kr 개발키(무료) + 도메인 등록 후 입력
+const JUSO_KEY = "devU01TX0FVVEgyMDI2MDYyMDExMjM0NTExOTQ2NzM=";  // juso.go.kr 개발키(도로명주소 검색)
 
 // ---------- 배경지도 ----------
 const bases = {
@@ -260,7 +262,7 @@ $('dong-search').addEventListener('input', e=>{
 function clearGroup(g){ for(const k in g){ if(g[k]){ map.removeLayer(g[k]); g[k]=null; } } }
 
 // ---------- 단일 동 상세 ----------
-function loadDong(code, dong){
+function loadDong(code, dong, afterLoad){
   clearGroup(ov); clearGroup(cur); curParcels=null;
   selected.clear(); updateSelPanel(); curCode=code;
   $('cur-dong').textContent='📍 '+dong;
@@ -280,6 +282,7 @@ function loadDong(code, dong){
     map.fitBounds(cur.admin.getBounds(),{padding:[20,20]});
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 통/필지를 클릭하거나 지번을 검색하세요.`;
     setStatus(''); showIssues(code);
+    if(afterLoad) afterLoad();
     if(window.matchMedia('(max-width:640px)').matches) $('panel').classList.remove('open');
   }).catch(e=> setStatus(`${dong} 로드 실패: ${e}`));
 }
@@ -393,11 +396,47 @@ $('t-admin').onclick= e=>{ press(e.target,!e.target.classList.contains('on')); a
 
 // ---------- 지번 검색 ----------
 function search(){
-  const v=$('q').value.trim(); if(!v||!curParcelsData){ setStatus('먼저 동을 선택하세요.'); return; }
+  const v=$('q').value.trim(); if(!v){ setStatus('검색어를 입력하세요.'); return; }
+  if(/[로길]/.test(v)) searchAddress(v);      // 도로명주소 → juso
+  else searchJibun(v);                         // 지번(현재 동)
+}
+// 지번 검색(현재 표시 동 안)
+function searchJibun(v){
+  if(!curParcelsData){ setStatus('지번 검색은 동을 먼저 선택하세요. (도로명은 동 선택 없이 가능)'); return; }
   const f=(curParcelsData.features||[]).find(f=>{ const j=f.properties.지번; return j===v||j===('산'+v); });
   if(f){ const p=f.properties; map.fitBounds(L.geoJSON(f).getBounds(),{maxZoom:18});
     $('res').innerHTML=`<b>${p.법정동} ${p.지번}</b><br>${p.통}통 ${p.반||''}반 <small>(별표 지번)</small>`; setStatus(''); }
-  else setStatus(`"${v}" 지번을 못 찾음 (해당 동 별표에 없을 수 있음)`);
+  else setStatus(`"${v}" 지번을 못 찾음 (현재 동 별표에 없을 수 있음)`);
+}
+// 주소 인덱스 지연 로드
+let addrIndex=null;
+function ensureIndex(){ return addrIndex ? Promise.resolve(addrIndex)
+  : fetch('out/address_index.json').then(r=>r.json()).then(d=>(addrIndex=d.index)); }
+// 도로명주소 검색(juso) → 지번 변환 → 인덱스로 통 조회 → 해당 동 로드+강조
+function searchAddress(kw){
+  if(!JUSO_KEY){ setStatus('도로명 검색은 juso 키 필요(index.html JUSO_KEY)'); return; }
+  setStatus('주소 검색 중…');
+  const url='https://www.juso.go.kr/addrlink/addrLinkApi.do?'+new URLSearchParams(
+    {confmKey:JUSO_KEY,currentPage:1,countPerPage:5,keyword:kw,resultType:'json'});
+  fetch(url).then(r=>r.json()).then(d=>{
+    const j=d.results&&d.results.juso&&d.results.juso[0];
+    if(!j){ setStatus(`"${kw}" 주소를 찾지 못했습니다.`); return; }
+    const m=j.jibunAddr.match(/시흥시\s+(\S*?[동리])\s+(산?\d+(?:-\d+)?)/);
+    if(!m){ setStatus(`지번 변환 실패: ${j.jibunAddr}`); return; }
+    const key=m[1]+'|'+m[2];
+    ensureIndex().then(idx=>{
+      const hit=idx[key];
+      if(!hit){ $('res').innerHTML=`<b>${j.roadAddr}</b><br>${m[1]} ${m[2]} <small>— 별표에 없는 지번(통 미상)</small>`; setStatus(''); return; }
+      const [code,dong,t,b]=hit;
+      loadDong(code,dong,()=>{
+        selectSingle(t);
+        let lyr=null; cur.parcels.eachLayer(l=>{ if(!lyr && l.feature.properties.통===t) lyr=l; });
+        if(lyr) map.fitBounds(lyr.getBounds().pad(.4),{maxZoom:17});
+        $('res').innerHTML=`<b>${j.roadAddr}</b><br>${m[1]} ${m[2]} → <b>${dong} ${t}통${b?' '+b+'반':''}</b>`;
+        setStatus('');
+      });
+    });
+  }).catch(e=> setStatus('주소 검색 실패: '+e));
 }
 $('go').onclick = search;
 $('q').addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
