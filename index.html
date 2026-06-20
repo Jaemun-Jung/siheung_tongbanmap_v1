@@ -148,8 +148,9 @@ const tongStyle = f => { const t=f.properties.통, on=selected.has(t), dim=selAc
     opacity: dim?0.3:0.95 }; };
 
 // ---------- 상태 ----------
-let manifest=null, cur={parcels:null,tong:null,admin:null,labels:null}, curParcels=null;
+let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,labels:null}, curParcels=null;
 let ov={tong:null,admin:null,labels:null};
+let allAdminCache=null;   // out/overview/all_admin.geojson 캐시(이웃 동 클릭용)
 const $ = id => document.getElementById(id);
 const setStatus = s => $('status').textContent = s||'';
 
@@ -207,12 +208,34 @@ function loadDong(code, dong){
           html:`<div class="tong-label" style="border-color:${color(p.통)};border-style:${bs}">${p.통}</div>`})}));
     });
     cur.labels.addTo(map);
+    loadNeighbors(code);
     applyToggles();
     map.fitBounds(cur.admin.getBounds(),{padding:[20,20]});
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 필지를 클릭하거나 지번을 검색하세요.`;
     setStatus('');
     if(window.matchMedia('(max-width:640px)').matches) $('panel').classList.remove('open');
   }).catch(e=> setStatus(`${dong} 로드 실패: ${e}`));
+}
+
+// ---------- 이웃 동 클릭 이동(상세 보기에서 다른 동으로 점프) ----------
+function loadNeighbors(curCode){
+  const NB={color:'#999',weight:1,fillColor:'#000',fillOpacity:0.01,opacity:0.5,dashArray:'2 3'};
+  const add = data => {
+    cur.neighbors = L.geoJSON(data,{
+      filter: f => f.properties.code !== curCode,        // 현재 동 제외(이웃만)
+      style: NB,
+      onEachFeature: (f,l) => { const p=f.properties;
+        l.bindTooltip(`${p.dong} (클릭하면 이동)`, {sticky:true});
+        l.on('click', ()=> loadDong(p.code, p.dong));
+        l.on('mouseover', ()=> l.setStyle({fillOpacity:0.12, color:'#1769aa', weight:2, opacity:0.9}));
+        l.on('mouseout',  ()=> l.setStyle(NB));
+      }}).addTo(map);
+    cur.neighbors.bringToBack();      // 현재 동 필지/통 아래로 → 동 안쪽 클릭은 필지(통 선택) 유지
+    curBase.bringToBack();            // 배경 타일은 맨 아래
+  };
+  if(allAdminCache) add(allAdminCache);
+  else fetch('out/overview/all_admin.geojson').then(r=>r.json())
+        .then(d=>{ allAdminCache=d; add(d); }).catch(()=>{});
 }
 
 // ---------- 전체지도 ----------
