@@ -180,9 +180,10 @@ const pStyle = f => { const t=f.properties.통, a=approx(f), rd=road(f);
     color:color(t), weight: on?2.5:(a?2:(rd?0.6:1)), dashArray:a?'5 4':null,
     fillOpacity: mode==='fill' ? (dim?0.06:(on?0.62:(a?settings.fillAlpha*0.66:(rd?settings.fillAlpha*0.62:settings.fillAlpha)))) : (on?0.18:0),
     opacity: mode==='fill' ? (dim?0.25:(on?1:(a?0.95:(rd?0.5:0.6)))) : (dim?0.25:0.9) }; };
-const tongStyle = f => { const t=f.properties.통, on=selected.has(t), dim=selActive()&&!on;
-  return { color:color(t), weight:on?settings.lineWeight+2:settings.lineWeight,
-    dashArray:approx(f)?'5 4':null, fill:false, opacity: dim?0.3:0.95 }; };
+const TONG_LINE='#333';                      // 통 경계선: 채우기와 대비되는 어두운 중립색
+const tongStyle = f => { const on=selected.has(f.properties.통), dim=selActive()&&!on;
+  return { color:TONG_LINE, weight:on?settings.lineWeight+2:settings.lineWeight,
+    dashArray:approx(f)?'5 4':null, fill:false, opacity: dim?0.35:0.95 }; };
 
 // ---------- 상태 ----------
 let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,labels:null}, curParcels=null;
