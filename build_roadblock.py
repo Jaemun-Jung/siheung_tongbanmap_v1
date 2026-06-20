@@ -13,12 +13,28 @@ from collections import Counter
 import geopandas as gpd
 import pandas as pd
 from shapely.ops import polygonize, unary_union, voronoi_diagram
-from shapely.geometry import LineString, MultiLineString, GeometryCollection, MultiPoint
+from shapely.geometry import (LineString, MultiLineString, GeometryCollection,
+                              MultiPoint, Polygon, MultiPolygon)
 from shapely import STRtree
 
 COV_MIN = 0.10          # 블록 면적 대비 별표필지 커버리지 하한(미만=빈땅 제외)
 MIN_PARCELS = 2
 SLIVER = 2.0
+MIN_PART = 500          # 이보다 작은 통 조각(슬리버)은 버림(m2)
+MAX_HOLE = 50000        # 이보다 작은 내부 구멍은 메움(통 안 검은선 제거, m2)
+
+def clean_geom(geom):
+    """통 폴리곤 정리 — 작은 조각 제거 + 작은 내부 구멍 메우기(통 안 잡선 제거)."""
+    parts = list(geom.geoms) if isinstance(geom, MultiPolygon) else [geom]
+    out = []
+    for p in parts:
+        if p.area < MIN_PART:
+            continue
+        holes = [r for r in p.interiors if Polygon(r).area >= MAX_HOLE]
+        out.append(Polygon(p.exterior, holes))
+    if not out:
+        return geom
+    return out[0] if len(out) == 1 else MultiPolygon(out)
 
 def to_lines(geom):
     out = []
@@ -83,7 +99,7 @@ def roadblock_for(code, dong, roads_all):
     pg = gpd.GeoDataFrame(pd.DataFrame(pieces, columns=["통", "geometry"]),
                           geometry="geometry", crs="EPSG:5186")
     newt = pg.dissolve("통").reset_index()[["통", "geometry"]]
-    newt["geometry"] = newt.buffer(0)
+    newt["geometry"] = newt.buffer(0).apply(clean_geom)
     newt = newt.to_crs("EPSG:4326")
     lp = newt.representative_point()
     newt["lon"], newt["lat"] = lp.x.round(7), lp.y.round(7)
