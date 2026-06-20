@@ -133,8 +133,12 @@
     <button class="b" id="draw-tong">✏️ 통 그리기</button>
     <button class="b" id="draw-export">내보내기</button>
   </div>
+  <div class="row tight" id="draw-controls" style="display:none">
+    <button class="b" id="draw-undo">↩ 마지막 점 취소</button>
+    <button class="b" id="draw-cancel">✕ 그리기 취소</button>
+  </div>
   <div id="manual-list" class="manlist"></div>
-  <div class="hint">검토중(빨간 점선)으로 이 브라우저에 저장 · 내보내기 → 담당자 검토·반영</div>
+  <div class="hint">그리는 중: 클릭=점, <b>더블클릭=완료</b>, <b>Backspace</b>=마지막 점 취소, <b>ESC</b>=처음부터/취소 · 검토중(빨간 점선)으로 이 브라우저에 저장</div>
 
   <label>주소 검색 (도로명·지번)</label>
   <div class="row tight">
@@ -587,7 +591,7 @@ function carveBase(baseFeats, mfeats){
 }
 map.on('pm:create', e=>{
   const gj = e.layer.toGeoJSON(); map.removeLayer(e.layer);
-  map.pm.disableDraw(); drawing=false; $('draw-tong').classList.remove('on');
+  map.pm.disableDraw(); setDrawUI(false);
   if(!curCode){ setStatus('동을 먼저 선택하세요.'); return; }
   const t = prompt('빠진 통 번호를 입력하세요:');
   if(!t || !/^\d+$/.test(t.trim())){ setStatus('통 번호가 올바르지 않아 취소됨.'); return; }
@@ -597,13 +601,35 @@ map.on('pm:create', e=>{
   saveManual(); renderManual();
   $('res').innerHTML = `<b>${t}통 (검토중)</b> 추가됨 — 겹친 기존 통은 경계가 자동 조정됩니다. 내보내기로 담당자에게 전달하세요.`;
 });
-$('draw-tong').onclick = e=>{
+function setDrawUI(on){
+  drawing = on;
+  $('draw-tong').classList.toggle('on', on);
+  $('draw-tong').textContent = on ? '■ 그리기 중…' : '✏️ 통 그리기';
+  $('draw-controls').style.display = on ? 'flex' : 'none';
+}
+function startDraw(){
   if(!curCode){ setStatus('동을 먼저 선택하세요.'); return; }
-  drawing = !drawing;
-  if(drawing){ map.pm.enableDraw('Polygon',{snappable:true,finishOn:'dblclick'});
-    e.target.classList.add('on'); setStatus('지도에 통 영역을 그리세요(더블클릭=완료).'); }
-  else { map.pm.disableDraw(); e.target.classList.remove('on'); setStatus(''); }
-};
+  map.pm.enableDraw('Polygon',{snappable:true,finishOn:'dblclick'});
+  setDrawUI(true);
+  setStatus('클릭=점 · 더블클릭=완료 · Backspace=마지막 점 취소 · ESC=처음부터/취소');
+}
+function cancelDraw(){ map.pm.disableDraw(); setDrawUI(false); setStatus('그리기 취소됨.'); }
+function undoLastVertex(){
+  const dp = drawing && map.pm.Draw && map.pm.Draw.Polygon;
+  if(dp && dp._enabled && dp._markers && dp._markers.length){
+    dp._removeLastVertex();
+    setStatus(dp._markers.length ? `마지막 점 취소 (남은 점 ${dp._markers.length}개)` : '점 모두 지움 — 다시 클릭해 시작하세요.');
+  } else setStatus('취소할 점이 없습니다.');
+}
+$('draw-tong').onclick = ()=>{ drawing ? cancelDraw() : startDraw(); };
+$('draw-undo').onclick = undoLastVertex;
+$('draw-cancel').onclick = cancelDraw;
+document.addEventListener('keydown', e=>{
+  if(!drawing) return;
+  if(e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return;  // 입력창 키 보호
+  if(e.key==='Escape'){ e.preventDefault(); cancelDraw(); }
+  else if(e.key==='Backspace'){ e.preventDefault(); undoLastVertex(); }
+});
 // 지도(경계 재렌더로 깎기 반영) + 목록 갱신
 function renderManual(){ if(cur.admin) renderBoundary(); renderManualList(); }
 function renderManualList(){
