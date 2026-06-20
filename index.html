@@ -66,7 +66,8 @@
  .tong-label{display:inline-block;min-width:16px;padding:0 5px;background:rgba(255,255,255,.93);
    border:2px solid #333;border-radius:11px;font-weight:700;font-size:12px;line-height:15px;
    color:#111;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.4)}
- .dong-label{font-weight:700;font-size:12px;color:#111;text-shadow:0 0 3px #fff,0 0 3px #fff}
+ .dong-label{font-weight:700;font-size:12px;color:#111;white-space:nowrap;
+   text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 4px #fff}
  .leaflet-popup-content{font-size:13px}
  .curdong{font-size:16px;font-weight:700;color:var(--blue);margin:2px 0 8px}
  #dong-badge{position:absolute;z-index:1000;top:10px;left:50%;transform:translateX(-50%);
@@ -401,7 +402,7 @@ function loadNeighbors(curCode){
 
 // ---------- 전체지도 ----------
 function showOverview(){
-  clearGroup(cur); clearGroup(ov); curParcels=null;
+  clearGroup(cur); clearGroup(ov); curParcels=null; curCode=null;
   selected.clear(); updateSelPanel();
   $('cur-dong').textContent='시흥시 전체'; $('dong-badge').style.display='none';
   $('dong-select').value=''; setStatus('전체지도 불러오는 중…');
@@ -428,16 +429,49 @@ function showOverview(){
     // ① 시흥시 외곽선(굵은 대비색) — 주변 시와 확실히 구분
     ov.city = L.geoJSON(city,{interactive:false,
       style:{color:'#c0392b',weight:4,fill:false,opacity:.95}}).addTo(map);
-    ov.labels = L.layerGroup();
-    (manifest.dongs||[]).forEach(d=> ov.labels.addLayer(
-      L.marker(d.center,{interactive:false,keyboard:false,
-        icon:L.divIcon({className:'',html:`<span class="dong-label">${d.dong}</span>`,iconSize:[60,16],iconAnchor:[30,8]})})));
-    ov.labels.addTo(map);
     map.fitBounds(ov.city.getBounds(),{padding:[20,20]});
+    buildOverviewLabels();                       // fitBounds 이후 픽셀로 분산 배치
     $('res').innerHTML = `<b>시흥시 전체</b> — 동을 클릭하거나 목록에서 선택하세요.`;
     setStatus(''); showCityIssues();
   }).catch(e=> setStatus('전체지도 로드 실패: '+e));
 }
+// 전체지도 동 라벨: 겹치는 라벨을 픽셀 단위로 밀어내 분산(정왕 등 밀집 동 가독성)
+function buildOverviewLabels(){
+  if(!manifest || !ov.city) return;
+  if(ov.labels){ map.removeLayer(ov.labels); ov.labels=null; }
+  ov.labels = L.layerGroup();
+  const dongs = manifest.dongs||[];
+  const pts  = dongs.map(d=> map.latLngToLayerPoint(L.latLng(d.center[0], d.center[1])));
+  const orig = pts.map(p=> L.point(p.x, p.y));
+  const GX=58, GY=17;                            // 라벨 반경(타원) px — 가로로 긴 라벨 반영
+  for(let it=0; it<80; it++){
+    let moved=false;
+    for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){
+      let dx=pts[j].x-pts[i].x, dy=pts[j].y-pts[i].y;
+      const d2=(dx/GX)*(dx/GX)+(dy/GY)*(dy/GY);
+      if(d2>=1) continue;                         // 타원 밖이면 안 겹침
+      let dist=Math.hypot(dx,dy);
+      if(dist<0.01){ dx=0; dy=(i<j?-1:1); dist=1; }   // 완전 동일 위치
+      const push=(1-Math.sqrt(d2))/2 + 0.04;
+      const ux=dx/dist, uy=dy/dist;
+      pts[i].x-=ux*push*GX; pts[i].y-=uy*push*GY;
+      pts[j].x+=ux*push*GX; pts[j].y+=uy*push*GY;
+      moved=true;
+    }
+    if(!moved) break;
+  }
+  dongs.forEach((d,i)=>{
+    const ll = map.layerPointToLatLng(pts[i]);
+    if(orig[i].distanceTo(pts[i])>13)             // 많이 밀린 라벨엔 실제 위치로 얇은 지시선
+      ov.labels.addLayer(L.polyline([map.layerPointToLatLng(orig[i]), ll],
+        {color:'#666',weight:1,opacity:.55,interactive:false,dashArray:'2 3'}));
+    ov.labels.addLayer(L.marker(ll,{interactive:false,keyboard:false,
+      icon:L.divIcon({className:'',html:`<span class="dong-label">${d.dong}</span>`,iconSize:[60,16],iconAnchor:[30,8]})}));
+  });
+  ov.labels.addTo(map);
+}
+// 전체지도에서 줌이 바뀌면 라벨 재배치(겹침은 줌에 따라 달라짐)
+map.on('zoomend', ()=>{ if(!curCode && ov.city) buildOverviewLabels(); });
 $('overview-btn').onclick = showOverview;
 $('bm-clean').onclick = ()=> setBoundaryMode('clean');
 $('bm-parcel').onclick = ()=> setBoundaryMode('parcel');
