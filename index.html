@@ -36,6 +36,13 @@
    border-radius:12px;font-size:11px;font-weight:700;background:#fff}
  .chip b{cursor:pointer;color:#c00;font-size:13px;line-height:1}
  .selinfo{margin-top:6px;color:#333;font-size:11px}
+ .issues{margin-top:8px;font-size:11.5px;border-top:1px solid #eee;padding-top:8px;line-height:1.5}
+ .issues .big{font-size:13px;font-weight:700}
+ .issues .warn{color:#a15c00}
+ .issues details{margin-top:4px}
+ .issues summary{cursor:pointer;color:var(--blue)}
+ .issues ul{margin:4px 0 0;padding-left:16px}
+ .issues li{margin:1px 0;color:#555}
  #panel-toggle{position:absolute;z-index:1001;top:10px;left:10px;width:42px;height:42px;
    border:none;border-radius:10px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3);
    font-size:20px;cursor:pointer;display:none}
@@ -121,6 +128,7 @@
 
   <div id="res">행정동을 선택하거나 전체지도를 보세요.</div>
   <div id="status"></div>
+  <div id="issues" class="issues" style="display:none"></div>
   <div class="legend">
     <span><i style="background:#888"></i>별표 지번(법적 근거)</span> ·
     <span><i style="background:#bbb"></i>도로 보정</span> ·
@@ -207,6 +215,36 @@ fetch('out/manifest.json').then(r=>r.json()).then(m=>{
   manifest = m; renderDongList(m.dongs); showOverview();
 }).catch(e=> setStatus('manifest 로드 실패 — 웹서버로 열었는지 확인 (file:// 불가)'));
 
+// 8단계 검증 안내(미표시 통/충돌/미배정)
+let issuesData={};
+fetch('out/issues.json').then(r=>r.json())
+  .then(d=>{ issuesData=d; if(curCode) showIssues(curCode); else showCityIssues(); }).catch(()=>{});
+function showIssues(code){
+  const el=$('issues'), v=issuesData[code]; if(!el) return;
+  if(!v){ el.style.display='none'; return; }
+  el.style.display='block';
+  let h=`<span class="big">표 ${v.n_table}통 중 <b>${v.n_drawn}통</b> 표시</span>`;
+  if(v.n_missing>0){
+    h+=` <span class="warn">· 미표시 ${v.n_missing}통</span>`+
+       `<details><summary>미표시 통 ${v.n_missing}개 보기</summary><ul>`+
+       v.missing.map(m=>`<li>${m.통}통 — ${m.사유||m.유형||''}</li>`).join('')+`</ul></details>`;
+  }
+  const ex=[];
+  if(v.n_conflict) ex.push(`충돌 ${v.n_conflict}건`);
+  if(v.n_unassigned) ex.push(`미배정 필지 ${v.n_unassigned}`);
+  if(ex.length) h+=`<div style="margin-top:3px;color:#888">${ex.join(' · ')} <small>(검수용)</small></div>`;
+  el.innerHTML=h;
+}
+function showCityIssues(){
+  const el=$('issues'); if(!el) return;
+  const vals=Object.values(issuesData); if(!vals.length){ el.style.display='none'; return; }
+  const T=vals.reduce((a,v)=>a+v.n_table,0), D=vals.reduce((a,v)=>a+v.n_drawn,0);
+  el.style.display='block';
+  el.innerHTML=`<span class="big">시흥시 표 ${T}통 중 <b>${D}통</b> 표시</span>`+
+    (T-D>0?` <span class="warn">· 미표시 ${T-D}통</span>`+
+      `<div style="color:#888;margin-top:2px">동을 선택하면 동별 상세</div>`:'');
+}
+
 function renderDongList(dongs){
   const sel = $('dong-select'); sel.innerHTML='';
   dongs.forEach(d=>{ const o=document.createElement('option');
@@ -241,7 +279,7 @@ function loadDong(code, dong){
     loadNeighbors(code);
     map.fitBounds(cur.admin.getBounds(),{padding:[20,20]});
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 통/필지를 클릭하거나 지번을 검색하세요.`;
-    setStatus('');
+    setStatus(''); showIssues(code);
     if(window.matchMedia('(max-width:640px)').matches) $('panel').classList.remove('open');
   }).catch(e=> setStatus(`${dong} 로드 실패: ${e}`));
 }
@@ -327,7 +365,7 @@ function showOverview(){
     ov.labels.addTo(map);
     map.fitBounds(ov.city.getBounds(),{padding:[20,20]});
     $('res').innerHTML = `<b>시흥시 전체</b> — 동을 클릭하거나 목록에서 선택하세요.`;
-    setStatus('');
+    setStatus(''); showCityIssues();
   }).catch(e=> setStatus('전체지도 로드 실패: '+e));
 }
 $('overview-btn').onclick = showOverview;
