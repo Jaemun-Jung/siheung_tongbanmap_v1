@@ -47,6 +47,19 @@
  .manlist{margin-top:5px;font-size:11px}
  .manrow{display:flex;justify-content:space-between;align-items:center;padding:1px 0;color:#555}
  .manrow b{cursor:pointer;color:#c00}
+ /* 접이식 고급 섹션 */
+ details.sec{margin-top:9px;border:1px solid #e8e8e8;border-radius:9px;background:#fafbfc}
+ details.sec>summary{list-style:none;cursor:pointer;padding:10px 11px;font-weight:600;
+   font-size:12.5px;color:#333;display:flex;align-items:center;gap:7px;user-select:none;border-radius:9px}
+ details.sec>summary::-webkit-details-marker{display:none}
+ details.sec>summary::after{content:"⌄";margin-left:auto;color:#aaa;font-size:15px;
+   line-height:1;transform:translateY(-3px);transition:transform .15s}
+ details.sec[open]>summary::after{transform:translateY(1px) rotate(180deg)}
+ details.sec[open]>summary{border-bottom:1px solid #eee;border-radius:9px 9px 0 0}
+ details.sec>summary:hover{background:#f0f4f8}
+ details.sec .secbody{padding:2px 11px 11px}
+ details.sec .secbody>label:first-child{margin-top:8px}
+ .panel .primebtn{background:var(--blue);color:#fff;border-color:var(--blue)}
  #panel-toggle{position:absolute;z-index:1001;top:10px;left:10px;width:42px;height:42px;
    border:none;border-radius:10px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3);
    font-size:20px;cursor:pointer;display:none}
@@ -70,91 +83,108 @@
 <div class="panel" id="panel">
   <h1>시흥시 통반경계도</h1>
   <div id="cur-dong" class="curdong">시흥시 전체</div>
-  <div class="sub">행정동을 선택하면 통·반 경계가 표시됩니다.</div>
+  <div class="sub">행정동을 선택하거나 주소를 검색하세요.</div>
 
-  <label>행정동 선택</label>
+  <!-- ===== 기본: 동 선택 + 검색 (항상 표시) ===== -->
+  <label>① 행정동 선택</label>
   <input id="dong-search" placeholder="동 이름 검색 (예: 군자)"/>
-  <select id="dong-select" size="6" style="height:auto;margin-top:6px"></select>
-  <button class="b wide" id="overview-btn">🗺️ 전체지도 보기</button>
+  <select id="dong-select" size="5" style="height:auto;margin-top:6px"></select>
+  <button class="b wide" id="overview-btn">🗺️ 시흥시 전체지도</button>
 
-  <label>경계 방식</label>
-  <div class="row tight" id="bmode">
-    <button class="b on" id="bm-clean">깔끔(도로망)</button>
-    <button class="b" id="bm-parcel">별표(필지)</button>
-  </div>
-  <div class="hint">깔끔=도로 중심선 경계 · 별표=시행규칙 지번 그대로(법적)</div>
-
-  <label>배경지도</label>
-  <div class="row tight" id="bases">
-    <button class="b on" data-base="osm">일반</button>
-    <button class="b" data-base="sat">위성</button>
-    <button class="b" data-base="cad">지적편집도</button>
-  </div>
-
-  <label>표시 토글</label>
+  <label>② 주소·지번 검색</label>
   <div class="row tight">
-    <button class="b on" id="t-fill">면</button>
-    <button class="b" id="t-line">경계선</button>
-    <button class="b on" id="t-label">통번호</button>
-    <button class="b on" id="t-admin">동경계</button>
+    <input id="q" placeholder="도로명(마유로20번길 35) 또는 지번(491)" style="flex:1"/>
+    <button class="b primebtn" id="go">검색</button>
   </div>
-  <div class="hint">통 클릭 = 단일 선택 · Ctrl+클릭(우클릭/길게) = 다중 선택</div>
+  <div class="hint">도로명(로·길)은 시 전체에서 · 지번은 현재 동에서 찾습니다.</div>
+
+  <!-- 결과 / 상태 / 선택 / 검증 (항상 표시) -->
+  <div id="res">행정동을 선택하거나 전체지도를 보세요.</div>
+  <div id="status"></div>
   <div id="selbar" class="selbar" style="display:none">
     <div class="selhead"><b id="selcount">0개 통 선택됨</b>
       <button class="b" id="sel-clear" style="height:24px;padding:0 8px">전체 해제</button></div>
     <div id="selchips" class="chips"></div>
     <div id="selinfo" class="selinfo"></div>
   </div>
-
-  <label>색상 / 스타일</label>
-  <div class="row tight" id="palettes">
-    <button class="b" data-pal="default">기본</button>
-    <button class="b" data-pal="pastel">파스텔</button>
-    <button class="b" data-pal="vivid">원색</button>
-    <button class="b" data-pal="gray">흑백</button>
-  </div>
-  <div class="row tight" style="align-items:center;margin-top:6px">
-    <span style="font-size:11px;color:#555">선택 통 색</span>
-    <input type="color" id="tcolor" disabled title="통을 선택하면 색을 바꿀 수 있습니다"
-      style="width:38px;height:28px;padding:1px;border:1px solid #ccc;border-radius:6px"/>
-    <button class="b" id="color-reset" style="margin-left:auto">색 초기화</button>
-  </div>
-  <div style="font-size:11px;color:#555;margin-top:7px">선 두께
-    <input type="range" id="lw" min="1" max="6" step="0.5" style="width:100%;margin-top:2px"></div>
-  <div style="font-size:11px;color:#555;margin-top:4px">채우기 투명도
-    <input type="range" id="fa" min="0.1" max="0.85" step="0.05" style="width:100%;margin-top:2px"></div>
-
-  <label>인쇄용 출력 (PDF/PNG)</label>
-  <button class="b wide" id="export-print">🖨️ 출력 설정 내보내기</button>
-  <div class="hint">설정 파일 다운로드 → 터미널에서 <code>gen_print.py --export</code> 실행 → 고해상도 PDF·PNG</div>
-
-  <label>수동 보정 (빠진 통 그리기)</label>
-  <div class="row tight">
-    <button class="b" id="draw-tong">✏️ 통 그리기</button>
-    <button class="b" id="draw-export">내보내기</button>
-  </div>
-  <div class="row tight" id="draw-controls" style="display:none">
-    <button class="b" id="draw-undo">↩ 마지막 점 취소</button>
-    <button class="b" id="draw-cancel">✕ 그리기 취소</button>
-  </div>
-  <div id="manual-list" class="manlist"></div>
-  <div class="hint">그리는 중: 클릭=점, <b>더블클릭=완료</b>, <b>Backspace</b>=마지막 점 취소, <b>ESC</b>=처음부터/취소 · 검토중(빨간 점선)으로 이 브라우저에 저장</div>
-
-  <label>주소 검색 (도로명·지번)</label>
-  <div class="row tight">
-    <input id="q" placeholder="마유로20번길 35 / 지번: 491" style="flex:1"/>
-    <button class="b" id="go">조회</button>
-  </div>
-  <div class="hint">도로명(로·길 포함)은 전 동 검색 · 지번은 현재 동 안</div>
-
-  <div id="res">행정동을 선택하거나 전체지도를 보세요.</div>
-  <div id="status"></div>
   <div id="issues" class="issues" style="display:none"></div>
-  <div class="legend">
-    <span><i style="background:#888"></i>별표 지번(법적 근거)</span> ·
-    <span><i style="background:#bbb"></i>도로 보정</span> ·
-    <span>점선=근사 분할</span>
-  </div>
+
+  <!-- ===== 접이식 고급 설정 ===== -->
+  <details class="sec">
+    <summary>🎨 지도 보기 설정</summary>
+    <div class="secbody">
+      <label>경계 방식</label>
+      <div class="row tight" id="bmode">
+        <button class="b on" id="bm-clean">깔끔(도로망)</button>
+        <button class="b" id="bm-parcel">별표(필지)</button>
+      </div>
+      <div class="hint">깔끔=도로 중심선 경계 · 별표=시행규칙 지번 그대로(법적)</div>
+
+      <label>배경지도</label>
+      <div class="row tight" id="bases">
+        <button class="b on" data-base="osm">일반</button>
+        <button class="b" data-base="sat">위성</button>
+        <button class="b" data-base="cad">지적편집도</button>
+      </div>
+
+      <label>표시 항목</label>
+      <div class="row tight">
+        <button class="b on" id="t-fill">면</button>
+        <button class="b" id="t-line">경계선</button>
+        <button class="b on" id="t-label">통번호</button>
+        <button class="b on" id="t-admin">동경계</button>
+      </div>
+      <div class="hint">통 클릭 = 단일 선택 · Ctrl+클릭(우클릭/길게) = 다중 선택</div>
+
+      <label>색상 / 스타일</label>
+      <div class="row tight" id="palettes">
+        <button class="b" data-pal="default">기본</button>
+        <button class="b" data-pal="pastel">파스텔</button>
+        <button class="b" data-pal="vivid">원색</button>
+        <button class="b" data-pal="gray">흑백</button>
+      </div>
+      <div class="row tight" style="align-items:center;margin-top:6px">
+        <span style="font-size:11px;color:#555">선택 통 색</span>
+        <input type="color" id="tcolor" disabled title="통을 선택하면 색을 바꿀 수 있습니다"
+          style="width:38px;height:28px;padding:1px;border:1px solid #ccc;border-radius:6px"/>
+        <button class="b" id="color-reset" style="margin-left:auto">색 초기화</button>
+      </div>
+      <div style="font-size:11px;color:#555;margin-top:7px">선 두께
+        <input type="range" id="lw" min="1" max="6" step="0.5" style="width:100%;margin-top:2px"></div>
+      <div style="font-size:11px;color:#555;margin-top:4px">채우기 투명도
+        <input type="range" id="fa" min="0.1" max="0.85" step="0.05" style="width:100%;margin-top:2px"></div>
+
+      <div class="legend">
+        <span><i style="background:#888"></i>별표 지번(법적 근거)</span> ·
+        <span><i style="background:#bbb"></i>도로 보정</span> ·
+        <span>점선=근사 분할</span>
+      </div>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>✏️ 빠진 통 그리기</summary>
+    <div class="secbody">
+      <div class="row tight">
+        <button class="b" id="draw-tong">✏️ 통 그리기</button>
+        <button class="b" id="draw-export">내보내기</button>
+      </div>
+      <div class="row tight" id="draw-controls" style="display:none">
+        <button class="b" id="draw-undo">↩ 마지막 점 취소</button>
+        <button class="b" id="draw-cancel">✕ 그리기 취소</button>
+      </div>
+      <div id="manual-list" class="manlist"></div>
+      <div class="hint">클릭=점, <b>더블클릭=완료</b>, <b>Backspace</b>=마지막 점 취소, <b>ESC</b>=처음부터/취소 · 검토중(빨간 점선)으로 저장 → 내보내기로 담당자 검토</div>
+    </div>
+  </details>
+
+  <details class="sec">
+    <summary>🖨️ 인쇄용 출력 (PDF/PNG)</summary>
+    <div class="secbody">
+      <button class="b wide" id="export-print" style="margin-top:4px">출력 설정 내보내기</button>
+      <div class="hint">설정 파일 다운로드 → <code>출력하기.bat</code> 더블클릭 → 고해상도 PDF·PNG</div>
+    </div>
+  </details>
 </div>
 <div id="map"></div>
 
