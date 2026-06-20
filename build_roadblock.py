@@ -100,6 +100,19 @@ def roadblock_for(code, dong, roads_all):
                           geometry="geometry", crs="EPSG:5186")
     newt = pg.dissolve("통").reset_index()[["통", "geometry"]]
     newt["geometry"] = newt.buffer(0).apply(clean_geom)
+    # 수동/아파트 분할(근사=1, 예: 서희스타힐스 31·32통) 복원 — 지번이 없어 도로블록에서
+    # 빠지므로, 기존 분할 정의(parcels의 근사 조각)를 도로블록 위에 다시 얹는다(해당 통 자리 carve).
+    if "근사" in parcels.columns:
+        man = parcels[parcels["근사"] == 1].copy()
+        if len(man):
+            man["통"] = man["통"].astype(int)
+            man = man.dissolve("통").reset_index()[["통", "geometry"]]
+            man["geometry"] = man.buffer(0)
+            carve = man.union_all()
+            newt["geometry"] = newt.geometry.apply(lambda g: g.difference(carve))
+            newt = newt[~newt.geometry.is_empty]
+            newt = gpd.GeoDataFrame(pd.concat([newt, man], ignore_index=True),
+                                    geometry="geometry", crs="EPSG:5186")
     newt = newt.to_crs("EPSG:4326")
     lp = newt.representative_point()
     newt["lon"], newt["lat"] = lp.x.round(7), lp.y.round(7)
