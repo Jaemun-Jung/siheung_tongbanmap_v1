@@ -43,7 +43,12 @@
  .issues details{margin-top:4px}
  .issues summary{cursor:pointer;color:var(--blue)}
  .issues ul{margin:4px 0 0;padding-left:16px}
- .issues li{margin:1px 0;color:#555}
+ .issues li{margin:2px 0;color:#555}
+ .issues .rev summary{color:#b03a2e;font-weight:600}
+ .gr{display:inline-block;padding:0 5px;border-radius:8px;font-size:10px;font-weight:700;color:#fff}
+ .g-jibun{background:#c0392b}
+ .g-block{background:#d68910}
+ .g-over{background:#7d8a99}
  .manlist{margin-top:5px;font-size:11px}
  .manrow{display:flex;justify-content:space-between;align-items:center;padding:1px 0;color:#555}
  .manrow b{cursor:pointer;color:#c00}
@@ -274,9 +279,24 @@ fetch('out/manifest.json').then(r=>r.json()).then(m=>{
 }).catch(e=> setStatus('manifest 로드 실패 — 웹서버로 열었는지 확인 (file:// 불가)'));
 
 // 8단계 검증 안내(미표시 통/충돌/미배정)
-let issuesData={};
+let issuesData={}, reviewData={};
 fetch('out/issues.json').then(r=>r.json())
   .then(d=>{ issuesData=d; if(curCode) showIssues(curCode); else showCityIssues(); }).catch(()=>{});
+fetch('out/review.json').then(r=>r.json())
+  .then(d=>{ reviewData=d; if(curCode) showIssues(curCode); else showCityIssues(); }).catch(()=>{});
+const GRADE_KOR={지번오류의심:'지번 오류 의심', 블록분리:'블록 분리', 과대확장의심:'과대확장 의심'};
+const GRADE_CLS={지번오류의심:'jibun', 블록분리:'block', 과대확장의심:'over'};
+function splitHtml(rv){
+  if(!rv || !rv.n_split) return '';
+  const li = rv.split.map(s=>{
+    const jb = s.지번.slice(0,6).join(', ') + (s.지번.length>6 ? ` 외 ${s.지번.length-6}` : '');
+    return `<li><b>${s.통}통</b> <span class="gr g-${GRADE_CLS[s.등급]||'block'}">${GRADE_KOR[s.등급]||s.등급}</span>`+
+           ` · 본체서 약 ${s.거리m}m 떨어진 ${s.조각필지}필지<br><small>${jb}</small></li>`;
+  }).join('');
+  return `<details class="rev"><summary>🔎 별표 지번 재검토 의심 ${rv.n_split}통</summary>`+
+         `<ul>${li}</ul><div class="hint">통 본체에서 멀리 떨어진 필지 = 별표에 다른 통 지번이 섞였을 가능성. `+
+         `담당자가 별표 지번을 확인하세요(자동 수정 아님).</div></details>`;
+}
 function showIssues(code){
   const el=$('issues'), v=issuesData[code]; if(!el) return;
   if(!v){ el.style.display='none'; return; }
@@ -287,6 +307,7 @@ function showIssues(code){
        `<details><summary>미표시 통 ${v.n_missing}개 보기</summary><ul>`+
        v.missing.map(m=>`<li>${m.통}통 — ${m.사유||m.유형||''}</li>`).join('')+`</ul></details>`;
   }
+  h+=splitHtml(reviewData[code]);
   const ex=[];
   if(v.n_conflict) ex.push(`충돌 ${v.n_conflict}건`);
   if(v.n_unassigned) ex.push(`미배정 필지 ${v.n_unassigned}`);
@@ -297,10 +318,12 @@ function showCityIssues(){
   const el=$('issues'); if(!el) return;
   const vals=Object.values(issuesData); if(!vals.length){ el.style.display='none'; return; }
   const T=vals.reduce((a,v)=>a+v.n_table,0), D=vals.reduce((a,v)=>a+v.n_drawn,0);
+  const S=Object.values(reviewData).reduce((a,v)=>a+(v.n_split||0),0);
   el.style.display='block';
   el.innerHTML=`<span class="big">시흥시 표 ${T}통 중 <b>${D}통</b> 표시</span>`+
-    (T-D>0?` <span class="warn">· 미표시 ${T-D}통</span>`+
-      `<div style="color:#888;margin-top:2px">동을 선택하면 동별 상세</div>`:'');
+    (T-D>0?` <span class="warn">· 미표시 ${T-D}통</span>`:'')+
+    (S>0?` <span class="warn">· 재검토 의심 ${S}통</span>`:'')+
+    `<div style="color:#888;margin-top:2px">동을 선택하면 동별 상세(미표시·별표 지번 재검토)</div>`;
 }
 
 function renderDongList(dongs){
