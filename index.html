@@ -156,6 +156,7 @@
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.min.js"></script>
+<script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <script>
 // ===== 브이월드 자리(키 발급 후 입력하면 위성/지적편집도 활성) =====
 const VWORLD_KEY = "";  // https://www.vworld.kr 개발키(무료) + 도메인 등록 후 입력
@@ -208,16 +209,19 @@ const fmKor = m => ({road_match:'도로(통째 보정)',road_split:'도로(분�
 let mode = 'fill';
 const selected = new Set();                  // 선택된 통 번호(현재 동 기준)
 const selActive = () => selected.size > 0;
-const pStyle = f => { const t=f.properties.통, a=approx(f), rd=road(f);
+const MANUAL_COL='#c0392b';                  // 검토중(수동 보정) 표시색
+const manualF = f => !!(f.properties && f.properties._manual);
+const pStyle = f => { const t=f.properties.통, a=approx(f), rd=road(f), mn=manualF(f);
   const on=selected.has(t), dim=selActive()&&!on;
   return {
-    color:color(t), weight: on?2.5:(a?2:(rd?0.6:1)), dashArray:a?'5 4':null,
-    fillOpacity: mode==='fill' ? (dim?0.06:(on?0.62:(a?settings.fillAlpha*0.66:(rd?settings.fillAlpha*0.62:settings.fillAlpha)))) : (on?0.18:0),
-    opacity: mode==='fill' ? (dim?0.25:(on?1:(a?0.95:(rd?0.5:0.6)))) : (dim?0.25:0.9) }; };
+    color: mn?MANUAL_COL:color(t), fillColor:color(t),
+    weight: mn?2:(on?2.5:(a?2:(rd?0.6:1))), dashArray:(mn||a)?'5 4':null,
+    fillOpacity: mode==='fill' ? (dim?0.06:(on?0.62:(mn?settings.fillAlpha*0.72:(a?settings.fillAlpha*0.66:(rd?settings.fillAlpha*0.62:settings.fillAlpha))))) : (on?0.18:0),
+    opacity: mode==='fill' ? (dim?0.25:(on?1:(mn?0.95:(a?0.95:(rd?0.5:0.6))))) : (dim?0.25:0.9) }; };
 const TONG_LINE='#333';                      // 통 경계선: 채우기와 대비되는 어두운 중립색
-const tongStyle = f => { const on=selected.has(f.properties.통), dim=selActive()&&!on;
-  return { color:TONG_LINE, weight:on?settings.lineWeight+2:settings.lineWeight,
-    dashArray:approx(f)?'5 4':null, fill:false, opacity: dim?0.35:0.95 }; };
+const tongStyle = f => { const mn=manualF(f); const on=selected.has(f.properties.통), dim=selActive()&&!on;
+  return { color: mn?MANUAL_COL:TONG_LINE, weight:on?settings.lineWeight+2:settings.lineWeight,
+    dashArray:(mn||approx(f))?'5 4':null, fill:false, opacity: dim?0.35:0.95 }; };
 
 // ---------- 상태 ----------
 let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,labels:null}, curParcels=null;
@@ -298,7 +302,7 @@ function loadDong(code, dong, afterLoad){
     loadNeighbors(code);
     map.fitBounds(cur.admin.getBounds(),{padding:[20,20]});
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 통/필지를 클릭하거나 지번을 검색하세요.`;
-    setStatus(''); showIssues(code); renderManual();
+    setStatus(''); showIssues(code); renderManualList();
     if(afterLoad) afterLoad();
     if(window.matchMedia('(max-width:640px)').matches) $('panel').classList.remove('open');
   }).catch(e=> setStatus(`${dong} 로드 실패: ${e}`));
@@ -308,11 +312,23 @@ function loadDong(code, dong, afterLoad){
 function renderBoundary(){
   ['parcels','tong','labels'].forEach(k=>{ if(cur[k]){ map.removeLayer(cur[k]); cur[k]=null; } });
   const clean = boundaryMode==='clean' && curRoadblockData;
-  const fillData = clean ? curRoadblockData : curParcelsData;
-  curLineData = clean ? curRoadblockData : curTongData;
+  const mfeats = manualFeatures();               // 수동 보정 통(검토중) → Feature[]
+  let fillFeats, lineFeats;
+  if(clean){
+    // 그린 통이 겹치는 기존 통을 깎아내고(경계 후퇴), 새 통을 위에 추가
+    const carved = carveBase(curRoadblockData.features, mfeats);
+    fillFeats = carved.concat(mfeats); lineFeats = fillFeats;
+  } else {
+    // 별표·필지(법적) 뷰: 법정 필지는 깎지 않고 검토중 통만 위에 표시
+    fillFeats = (curParcelsData.features||[]).concat(mfeats);
+    lineFeats = (curTongData.features||[]).concat(mfeats);
+  }
+  const fillData = {type:'FeatureCollection', features:fillFeats};
+  curLineData = {type:'FeatureCollection', features:lineFeats};
   cur.parcels = L.geoJSON(fillData,{style:pStyle,onEachFeature:(f,l)=>{
     const p=f.properties;
-    const txt = clean ? `<b>${p.통}통</b>`
+    const txt = manualF(f) ? `<b>${p.통}통 (검토중)</b><br><small>${p.reason||'수동 보정'}<br>${p.date||''}</small>`
+      : clean ? `<b>${p.통}통</b>`
       : approx(f) ? `<b>${p.통}통 (근사 분할)</b><br>${p.법정동} ${p.지번}`
       : road(f) ? `${p.법정동} ${p.지번} <small>(도로)</small><br><b>${p.통}통</b><br><small>${fmKor(p.fill_method)}</small>`
       : `${p.법정동} ${p.지번}<br><b>${p.통}통 ${p.반}반</b>`;
@@ -353,7 +369,6 @@ function loadNeighbors(curCode){
 function showOverview(){
   clearGroup(cur); clearGroup(ov); curParcels=null;
   selected.clear(); updateSelPanel();
-  if(manualLayer){ map.removeLayer(manualLayer); manualLayer=null; }
   $('cur-dong').textContent='시흥시 전체'; $('dong-badge').style.display='none';
   $('dong-select').value=''; setStatus('전체지도 불러오는 중…');
   Promise.all([
@@ -504,10 +519,12 @@ function buildLabels(features){
   cur.labels = L.layerGroup();
   (features||[]).forEach(f=>{ const p=f.properties;
     if(p.lat==null||p.lon==null) return;
-    const bs=approx(f)?'dashed':'solid';
+    const mn=manualF(f);
+    const bs=(approx(f)||mn)?'dashed':'solid';
+    const bc=mn?MANUAL_COL:color(p.통);
     cur.labels.addLayer(L.marker([p.lat,p.lon],{interactive:false,keyboard:false,icon:
       L.divIcon({className:'',iconSize:[26,19],iconAnchor:[13,10],
-        html:`<div class="tong-label" style="border-color:${color(p.통)};border-style:${bs}">${p.통}</div>`})}));
+        html:`<div class="tong-label" style="border-color:${bc};border-style:${bs}">${p.통}</div>`})}));
   });
 }
 function recolor(){
@@ -540,8 +557,34 @@ $('fa').addEventListener('input', e=>{ settings.fillAlpha=+e.target.value; recol
 
 // ---------- 9단계: 수동 보정(빠진 통 그리기) ----------
 let manualData = JSON.parse(localStorage.getItem('tongban_manual') || '{}');  // {code:[{통,reason,date,geometry}]}
-let manualLayer = null, drawing = false;
+let drawing = false;
 function saveManual(){ localStorage.setItem('tongban_manual', JSON.stringify(manualData)); }
+// 현재 동의 수동 통 → Feature[](검토중 표시·라벨 중심점 포함). renderBoundary가 카브+합성에 사용
+function manualFeatures(){
+  return (manualData[curCode]||[]).map(m=>{
+    const f={type:'Feature',geometry:m.geometry,
+      properties:{통:m.통,반:'',_manual:true,reason:m.reason,date:m.date}};
+    try{ const c=L.geoJSON(f).getBounds().getCenter(); f.properties.lat=c.lat; f.properties.lon=c.lng; }catch(e){}
+    return f;
+  });
+}
+// 그린 통과 겹치는 '다른 번호' 기존 통을 깎아냄(경계 후퇴). turf 미로드 시 원본 유지
+function carveBase(baseFeats, mfeats){
+  if(!window.turf || !mfeats.length) return (baseFeats||[]).slice();
+  let feats = (baseFeats||[]).slice();
+  mfeats.forEach(mf=>{
+    feats = feats.map(f=>{
+      if(String(f.properties.통)===String(mf.properties.통)) return f;   // 같은 통은 유지
+      try{
+        if(!turf.booleanIntersects(f, mf)) return f;                     // 안 겹치면 그대로
+        const d = turf.difference(f, mf);
+        if(!d) return null;                                              // 완전히 덮이면 제거
+        d.properties = f.properties; return d;
+      }catch(e){ return f; }
+    }).filter(Boolean);
+  });
+  return feats;
+}
 map.on('pm:create', e=>{
   const gj = e.layer.toGeoJSON(); map.removeLayer(e.layer);
   map.pm.disableDraw(); drawing=false; $('draw-tong').classList.remove('on');
@@ -552,7 +595,7 @@ map.on('pm:create', e=>{
   (manualData[curCode] = manualData[curCode] || []).push(
     { 통:+t, reason, date:new Date().toISOString().slice(0,10), geometry:gj.geometry });
   saveManual(); renderManual();
-  $('res').innerHTML = `<b>${t}통 (검토중)</b> 추가됨 — 내보내기로 담당자에게 전달하세요.`;
+  $('res').innerHTML = `<b>${t}통 (검토중)</b> 추가됨 — 겹친 기존 통은 경계가 자동 조정됩니다. 내보내기로 담당자에게 전달하세요.`;
 });
 $('draw-tong').onclick = e=>{
   if(!curCode){ setStatus('동을 먼저 선택하세요.'); return; }
@@ -561,21 +604,10 @@ $('draw-tong').onclick = e=>{
     e.target.classList.add('on'); setStatus('지도에 통 영역을 그리세요(더블클릭=완료).'); }
   else { map.pm.disableDraw(); e.target.classList.remove('on'); setStatus(''); }
 };
-function renderManual(){
-  if(manualLayer){ map.removeLayer(manualLayer); manualLayer=null; }
+// 지도(경계 재렌더로 깎기 반영) + 목록 갱신
+function renderManual(){ if(cur.admin) renderBoundary(); renderManualList(); }
+function renderManualList(){
   const list = manualData[curCode] || [];
-  manualLayer = L.layerGroup();
-  list.forEach(m=>{
-    const f={type:'Feature',geometry:m.geometry,properties:{}};
-    manualLayer.addLayer(L.geoJSON(f,{style:{color:'#c0392b',weight:2,dashArray:'6 5',
-      fillColor:'#c0392b',fillOpacity:.15}}).bindPopup(
-      `<b>${m.통}통 (검토중)</b><br><small>${m.reason||''}<br>${m.date}</small>`));
-    const c=L.geoJSON(f).getBounds().getCenter();
-    manualLayer.addLayer(L.marker(c,{interactive:false,icon:L.divIcon({className:'',
-      html:`<div class="tong-label" style="border-color:#c0392b;border-style:dashed">${m.통}</div>`,
-      iconSize:[26,19],iconAnchor:[13,10]})}));
-  });
-  manualLayer.addTo(map);
   $('manual-list').innerHTML = list.map((m,i)=>
     `<div class="manrow"><span>${m.통}통 <small>검토중 ${m.date}</small></span><b data-i="${i}">✕</b></div>`).join('');
   $('manual-list').querySelectorAll('b[data-i]').forEach(x=> x.onclick=()=>{
