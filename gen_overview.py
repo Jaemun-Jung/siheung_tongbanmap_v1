@@ -41,8 +41,15 @@ def main():
     tp_out, ap_out = f"{OUT}/overview/all_tong.geojson", f"{OUT}/overview/all_admin.geojson"
     tong.to_file(tp_out, driver="GeoJSON")
     admin.to_file(ap_out, driver="GeoJSON")
+
+    # 시흥시 전체 외곽 경계(20개 행정동 union) — 전체지도 강조/스포트라이트용
+    city_geom = admin.to_crs("EPSG:5186").union_all().buffer(2).buffer(-2).simplify(15)
+    city = gpd.GeoDataFrame(geometry=[city_geom], crs="EPSG:5186").to_crs("EPSG:4326")
+    cp_out = f"{OUT}/overview/city_boundary.geojson"
+    city.to_file(cp_out, driver="GeoJSON")
     print(f"overview: 통 {len(tong)}개({os.path.getsize(tp_out)//1024}KB), "
-          f"행정동 {len(admin)}개({os.path.getsize(ap_out)//1024}KB)")
+          f"행정동 {len(admin)}개({os.path.getsize(ap_out)//1024}KB), "
+          f"시흥시 경계({os.path.getsize(cp_out)//1024}KB)")
 
 if __name__ == "__main__":
     main()
