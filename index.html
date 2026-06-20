@@ -4,6 +4,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1"/>
 <title>시흥시 통반경계도</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<link rel="stylesheet" href="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.css"/>
 <style>
  :root{--blue:#1769aa}
  *{box-sizing:border-box}
@@ -43,6 +44,9 @@
  .issues summary{cursor:pointer;color:var(--blue)}
  .issues ul{margin:4px 0 0;padding-left:16px}
  .issues li{margin:1px 0;color:#555}
+ .manlist{margin-top:5px;font-size:11px}
+ .manrow{display:flex;justify-content:space-between;align-items:center;padding:1px 0;color:#555}
+ .manrow b{cursor:pointer;color:#c00}
  #panel-toggle{position:absolute;z-index:1001;top:10px;left:10px;width:42px;height:42px;
    border:none;border-radius:10px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3);
    font-size:20px;cursor:pointer;display:none}
@@ -124,6 +128,14 @@
   <button class="b wide" id="export-print">🖨️ 출력 설정 내보내기</button>
   <div class="hint">설정 파일 다운로드 → 터미널에서 <code>gen_print.py --export</code> 실행 → 고해상도 PDF·PNG</div>
 
+  <label>수동 보정 (빠진 통 그리기)</label>
+  <div class="row tight">
+    <button class="b" id="draw-tong">✏️ 통 그리기</button>
+    <button class="b" id="draw-export">내보내기</button>
+  </div>
+  <div id="manual-list" class="manlist"></div>
+  <div class="hint">검토중(빨간 점선)으로 이 브라우저에 저장 · 내보내기 → 담당자 검토·반영</div>
+
   <label>주소 검색 (도로명·지번)</label>
   <div class="row tight">
     <input id="q" placeholder="마유로20번길 35 / 지번: 491" style="flex:1"/>
@@ -143,6 +155,7 @@
 <div id="map"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.min.js"></script>
 <script>
 // ===== 브이월드 자리(키 발급 후 입력하면 위성/지적편집도 활성) =====
 const VWORLD_KEY = "";  // https://www.vworld.kr 개발키(무료) + 도메인 등록 후 입력
@@ -285,7 +298,7 @@ function loadDong(code, dong, afterLoad){
     loadNeighbors(code);
     map.fitBounds(cur.admin.getBounds(),{padding:[20,20]});
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 통/필지를 클릭하거나 지번을 검색하세요.`;
-    setStatus(''); showIssues(code);
+    setStatus(''); showIssues(code); renderManual();
     if(afterLoad) afterLoad();
     if(window.matchMedia('(max-width:640px)').matches) $('panel').classList.remove('open');
   }).catch(e=> setStatus(`${dong} 로드 실패: ${e}`));
@@ -340,6 +353,7 @@ function loadNeighbors(curCode){
 function showOverview(){
   clearGroup(cur); clearGroup(ov); curParcels=null;
   selected.clear(); updateSelPanel();
+  if(manualLayer){ map.removeLayer(manualLayer); manualLayer=null; }
   $('cur-dong').textContent='시흥시 전체'; $('dong-badge').style.display='none';
   $('dong-select').value=''; setStatus('전체지도 불러오는 중…');
   Promise.all([
@@ -523,6 +537,62 @@ $('fa').addEventListener('input', e=>{ settings.fillAlpha=+e.target.value; recol
   document.querySelectorAll('#palettes button').forEach(x=>x.classList.toggle('on',x.dataset.pal===settings.palette));
   $('lw').value=settings.lineWeight; $('fa').value=settings.fillAlpha;
 })();
+
+// ---------- 9단계: 수동 보정(빠진 통 그리기) ----------
+let manualData = JSON.parse(localStorage.getItem('tongban_manual') || '{}');  // {code:[{통,reason,date,geometry}]}
+let manualLayer = null, drawing = false;
+function saveManual(){ localStorage.setItem('tongban_manual', JSON.stringify(manualData)); }
+map.on('pm:create', e=>{
+  const gj = e.layer.toGeoJSON(); map.removeLayer(e.layer);
+  map.pm.disableDraw(); drawing=false; $('draw-tong').classList.remove('on');
+  if(!curCode){ setStatus('동을 먼저 선택하세요.'); return; }
+  const t = prompt('빠진 통 번호를 입력하세요:');
+  if(!t || !/^\d+$/.test(t.trim())){ setStatus('통 번호가 올바르지 않아 취소됨.'); return; }
+  const reason = prompt('근거/메모 (선택):', '도로 기준 추정') || '';
+  (manualData[curCode] = manualData[curCode] || []).push(
+    { 통:+t, reason, date:new Date().toISOString().slice(0,10), geometry:gj.geometry });
+  saveManual(); renderManual();
+  $('res').innerHTML = `<b>${t}통 (검토중)</b> 추가됨 — 내보내기로 담당자에게 전달하세요.`;
+});
+$('draw-tong').onclick = e=>{
+  if(!curCode){ setStatus('동을 먼저 선택하세요.'); return; }
+  drawing = !drawing;
+  if(drawing){ map.pm.enableDraw('Polygon',{snappable:true,finishOn:'dblclick'});
+    e.target.classList.add('on'); setStatus('지도에 통 영역을 그리세요(더블클릭=완료).'); }
+  else { map.pm.disableDraw(); e.target.classList.remove('on'); setStatus(''); }
+};
+function renderManual(){
+  if(manualLayer){ map.removeLayer(manualLayer); manualLayer=null; }
+  const list = manualData[curCode] || [];
+  manualLayer = L.layerGroup();
+  list.forEach(m=>{
+    const f={type:'Feature',geometry:m.geometry,properties:{}};
+    manualLayer.addLayer(L.geoJSON(f,{style:{color:'#c0392b',weight:2,dashArray:'6 5',
+      fillColor:'#c0392b',fillOpacity:.15}}).bindPopup(
+      `<b>${m.통}통 (검토중)</b><br><small>${m.reason||''}<br>${m.date}</small>`));
+    const c=L.geoJSON(f).getBounds().getCenter();
+    manualLayer.addLayer(L.marker(c,{interactive:false,icon:L.divIcon({className:'',
+      html:`<div class="tong-label" style="border-color:#c0392b;border-style:dashed">${m.통}</div>`,
+      iconSize:[26,19],iconAnchor:[13,10]})}));
+  });
+  manualLayer.addTo(map);
+  $('manual-list').innerHTML = list.map((m,i)=>
+    `<div class="manrow"><span>${m.통}통 <small>검토중 ${m.date}</small></span><b data-i="${i}">✕</b></div>`).join('');
+  $('manual-list').querySelectorAll('b[data-i]').forEach(x=> x.onclick=()=>{
+    manualData[curCode].splice(+x.dataset.i,1);
+    if(!manualData[curCode].length) delete manualData[curCode];
+    saveManual(); renderManual(); });
+}
+$('draw-export').onclick = ()=>{
+  const feats=[];
+  Object.entries(manualData).forEach(([code,arr])=> arr.forEach(m=> feats.push(
+    {type:'Feature',properties:{code,통:m.통,source:'manual',reason:m.reason,date:m.date},geometry:m.geometry})));
+  if(!feats.length){ setStatus('내보낼 수동 통이 없습니다(먼저 그리세요).'); return; }
+  const blob=new Blob([JSON.stringify({type:'FeatureCollection',features:feats},null,2)],{type:'application/json'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download='manual_tongs.geojson'; document.body.appendChild(a); a.click(); a.remove();
+  setStatus(`수동 통 ${feats.length}개 내보냄 (manual_tongs.geojson → 담당자 검토).`);
+};
 
 // ---------- 모바일 패널 ----------
 $('panel-toggle').onclick = ()=> $('panel').classList.toggle('open');
