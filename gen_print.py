@@ -107,6 +107,7 @@ def render(code, dong, palette, paper, orient, boundary, select, dpi, date, over
     fig.savefig(base + ".png", dpi=dpi, bbox_inches="tight")
     plt.close(fig)
     print(f"✔ {dong}: {base}.pdf / .png ({dpi}DPI, {paper} {orient}, 경계 {boundary}, 통 {len(tong)})")
+    return base
 
 def main():
     ap = argparse.ArgumentParser(description="고해상도 통반경계도 출력")
@@ -119,6 +120,7 @@ def main():
     ap.add_argument("--select", default="")
     ap.add_argument("--dpi", type=int, default=300)
     ap.add_argument("--date", default="")
+    ap.add_argument("--open", action="store_true", help="생성 후 PDF 자동 열기")
     args = ap.parse_args()
 
     s = {}
@@ -130,12 +132,17 @@ def main():
     dong = s.get("dong") or find_dong(code)
     select = s.get("select") or ([x for x in args.select.split(",") if x.strip()])
     date = args.date or s.get("date") or "____-__-__"
-    render(code, dong,
+    base = render(code, dong,
            s.get("palette", args.palette), s.get("paper", args.paper),
            s.get("orient", args.orient), s.get("boundaryMode", args.boundary),
            select, args.dpi, date, s.get("tongColors", {}),
            float(s.get("lineWeight", 3)) * 0.4 if s else 1.2,   # 화면 두께→인쇄용 축소
            float(s.get("fillAlpha", 0.45)) if s else 0.55)
+    if args.open:
+        try:
+            os.startfile(os.path.abspath(base + ".pdf"))   # Windows: 기본 PDF 뷰어로 열기
+        except Exception as e:
+            print("PDF 열기 실패(수동으로 여세요):", e)
 
 if __name__ == "__main__":
     main()
