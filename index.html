@@ -44,6 +44,10 @@
    color:#111;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.4)}
  .dong-label{font-weight:700;font-size:12px;color:#111;text-shadow:0 0 3px #fff,0 0 3px #fff}
  .leaflet-popup-content{font-size:13px}
+ .curdong{font-size:16px;font-weight:700;color:var(--blue);margin:2px 0 8px}
+ #dong-badge{position:absolute;z-index:1000;top:10px;left:50%;transform:translateX(-50%);
+   background:var(--blue);color:#fff;font-weight:700;font-size:14px;padding:5px 14px;
+   border-radius:16px;box-shadow:0 1px 6px rgba(0,0,0,.35);display:none;pointer-events:none}
  @media(max-width:640px){
    .panel{width:calc(100% - 20px);max-height:55%;display:none}
    .panel.open{display:block}
@@ -51,8 +55,10 @@
  }
 </style></head><body>
 <button id="panel-toggle">☰</button>
+<div id="dong-badge"></div>
 <div class="panel" id="panel">
   <h1>시흥시 통반경계도</h1>
+  <div id="cur-dong" class="curdong">시흥시 전체</div>
   <div class="sub">행정동을 선택하면 통·반 경계가 표시됩니다.</div>
 
   <label>행정동 선택</label>
@@ -209,6 +215,8 @@ function clearGroup(g){ for(const k in g){ if(g[k]){ map.removeLayer(g[k]); g[k]
 function loadDong(code, dong){
   clearGroup(ov); clearGroup(cur); curParcels=null;
   selected.clear(); updateSelPanel(); curCode=code;
+  $('cur-dong').textContent='📍 '+dong;
+  $('dong-badge').textContent=dong; $('dong-badge').style.display='block';
   setStatus(`${dong} 불러오는 중…`);
   const base = `out/${code}/${dong}`;
   Promise.all([
@@ -268,6 +276,7 @@ function loadNeighbors(curCode){
 function showOverview(){
   clearGroup(cur); clearGroup(ov); curParcels=null;
   selected.clear(); updateSelPanel();
+  $('cur-dong').textContent='시흥시 전체'; $('dong-badge').style.display='none';
   $('dong-select').value=''; setStatus('전체지도 불러오는 중…');
   Promise.all([
     fetch('out/overview/all_tong.geojson').then(r=>r.json()),
