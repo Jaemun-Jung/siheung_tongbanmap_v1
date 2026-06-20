@@ -21,9 +21,17 @@ def main():
             continue
         g = gpd.read_file(tongp)
         minx, miny, maxx, maxy = (round(v, 6) for v in g.total_bounds)
+        # 라벨 위치(center): 행정동 폴리곤의 내부 보장점(대표점).
+        # bounds 중점은 불규칙·다부분(MultiPolygon)·과대확장 동에서 동 몸체 밖으로 벗어남.
+        adminp = f"{OUT}/{code}/{dong}_admin.geojson"
+        if os.path.exists(adminp):
+            rp = gpd.read_file(adminp).geometry.union_all().representative_point()
+            center = [round(rp.y, 6), round(rp.x, 6)]
+        else:
+            center = [round((miny + maxy) / 2, 6), round((minx + maxx) / 2, 6)]
         rows.append({
             "code": code, "dong": dong,
-            "center": [round((miny + maxy) / 2, 6), round((minx + maxx) / 2, 6)],
+            "center": center,
             "bounds": [[miny, minx], [maxy, maxx]],   # Leaflet [[S,W],[N,E]]
             "n_tong": int(g["통"].nunique()),
         })
