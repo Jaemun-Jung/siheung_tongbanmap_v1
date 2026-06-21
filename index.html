@@ -84,8 +84,9 @@
  .tong-label{display:inline-block;min-width:16px;padding:0 5px;background:rgba(255,255,255,.93);
    border:2px solid #333;border-radius:11px;font-weight:700;font-size:12px;line-height:15px;
    color:#111;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.4)}
- .dong-label{font-weight:700;font-size:12px;color:#111;white-space:nowrap;
-   text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 4px #fff}
+ .dong-label{display:inline-block;transform:translate(-50%,-50%);
+   font-weight:800;font-size:16px;color:#111;white-space:nowrap;letter-spacing:.3px;
+   text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 4px #fff,0 0 5px #fff,0 1px 2px #fff}
  .leaflet-popup-content{font-size:13px}
  .curdong{font-size:16px;font-weight:700;color:var(--blue);margin:2px 0 8px}
  #dong-badge{position:absolute;z-index:1000;top:10px;left:50%;transform:translateX(-50%);
@@ -279,6 +280,7 @@ const tongStyle = f => { const mn=manualF(f); const on=selected.has(f.properties
 
 // ---------- 상태 ----------
 let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,admincase:null,labels:null,unassigned:null}, curParcels=null;
+let ovCenters={};   // 전체지도 동 라벨 중심(code→[lat,lon]) — 폴리곤 centroid(내부 보장)
 let curUnassignedData=null;
 let ov={mask:null,tong:null,admin:null,city:null,labels:null};
 let allAdminCache=null;   // out/overview/all_admin.geojson 캐시(이웃 동 클릭용)
@@ -550,6 +552,13 @@ function showOverview(){
       onEachFeature:(f,l)=>{ const p=f.properties;
         l.bindPopup(`<b>${p.dong}</b> ${p.통}통<br><small>클릭하면 상세 보기</small>`);
         l.on('click',()=>loadDong(p.code,p.dong)); }}).addTo(map);
+    // 동 라벨 중심 = 폴리곤 centroid(내부면 그대로, 아니면 pointOnFeature로 내부 보장)
+    ovCenters={};
+    (admin.features||[]).forEach(f=>{ try{
+      let c=turf.centroid(f);
+      if(!turf.booleanPointInPolygon(c,f)) c=turf.pointOnFeature(f);
+      ovCenters[f.properties.code]=[c.geometry.coordinates[1], c.geometry.coordinates[0]];
+    }catch(e){} });
     // 행정동 전체 영역(빈 땅 포함)을 클릭 가능하게 — 투명 채움, 통 위에 깔아 어디를 눌러도 이동
     ov.admin = L.geoJSON(admin,{
       style:{color:'#333',weight:1.2,opacity:.7,fill:true,fillColor:'#1769aa',fillOpacity:0},
@@ -573,9 +582,10 @@ function buildOverviewLabels(){
   if(ov.labels){ map.removeLayer(ov.labels); ov.labels=null; }
   ov.labels = L.layerGroup();
   const dongs = manifest.dongs||[];
-  const pts  = dongs.map(d=> map.latLngToLayerPoint(L.latLng(d.center[0], d.center[1])));
+  const pts  = dongs.map(d=>{ const c=ovCenters[d.code]||d.center;   // 폴리곤 중심 우선
+    return map.latLngToLayerPoint(L.latLng(c[0], c[1])); });
   const orig = pts.map(p=> L.point(p.x, p.y));
-  const GX=58, GY=17;                            // 라벨 반경(타원) px — 가로로 긴 라벨 반영
+  const GX=70, GY=22;                            // 라벨 반경(타원) px — 키운 라벨 크기 반영
   for(let it=0; it<80; it++){
     let moved=false;
     for(let i=0;i<pts.length;i++) for(let j=i+1;j<pts.length;j++){
@@ -598,7 +608,7 @@ function buildOverviewLabels(){
       ov.labels.addLayer(L.polyline([map.layerPointToLatLng(orig[i]), ll],
         {color:'#666',weight:1,opacity:.55,interactive:false,dashArray:'2 3'}));
     ov.labels.addLayer(L.marker(ll,{interactive:false,keyboard:false,
-      icon:L.divIcon({className:'',html:`<span class="dong-label">${d.dong}</span>`,iconSize:[60,16],iconAnchor:[30,8]})}));
+      icon:L.divIcon({className:'',html:`<span class="dong-label">${d.dong}</span>`,iconSize:[0,0],iconAnchor:[0,0]})}));
   });
   ov.labels.addTo(map);
 }
