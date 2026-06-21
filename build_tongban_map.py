@@ -540,7 +540,10 @@ def main():
     def assign(row):
         cand = lut.get((row["_dong"], row["_jib"]), [])
         if cand:
-            tong = min(c[0] for c in cand) if CONFLICT_POLICY == "min_tong" else cand[0][0]
+            # 충돌 시 '구체적 아파트' 항목이 '범위' 항목을 이긴다.
+            # (예: 824가 통1 '818~827' 범위와 통12 '824 대우3차'에 둘 다 있으면 → 대우3차 통12)
+            pool = [c for c in cand if c[2]] or cand
+            tong = min(c[0] for c in pool) if CONFLICT_POLICY == "min_tong" else pool[0][0]
             sameban = [c for c in cand if c[0] == tong]
             return (tong, sameban[0][1], sameban[0][2], len({c[0] for c in cand}), "exact")
         if BONBUN_FALLBACK:

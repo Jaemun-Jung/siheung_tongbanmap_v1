@@ -71,10 +71,10 @@
 1,0,은행동,261-12,road_match
 1,0,은행동,260-8,road_match
 1,0,은행동,260-6,road_match
-15,0,은행동,259-25,road_match
-15,0,은행동,259-24,road_match
-15,0,은행동,259-23,road_match
-15,0,은행동,259-22,road_match
+31,0,은행동,259-25,road_match
+31,0,은행동,259-24,road_match
+31,0,은행동,259-23,road_match
+31,0,은행동,259-22,road_match
 15,0,은행동,252-77,road_match
 15,0,은행동,252-65,road_split
 1,0,은행동,252-65,road_split
@@ -84,8 +84,9 @@
 18,0,은행동,252-24,road_split
 15,0,은행동,252-24,road_split
 15,0,은행동,252-22,road_match
-15,0,은행동,252-19,road_match
-15,0,은행동,252-17,road_match
+31,0,은행동,252-19,road_match
+15,0,은행동,252-17,road_split
+31,0,은행동,252-17,road_split
 15,0,은행동,252-14,road_match
 18,0,은행동,252-13,road_match
 18,0,은행동,252-1,road_split
@@ -113,6 +114,7 @@
 18,0,은행동,250-36,road_split
 1,0,은행동,250-36,road_split
 15,0,은행동,250-36,road_split
+31,0,은행동,250-36,road_split
 1,0,은행동,250-31,road_match
 1,0,은행동,250-30,road_match
 15,0,은행동,250-29,road_match
@@ -220,7 +222,7 @@
 15,0,은행동,252-44,road_split
 1,0,은행동,252-44,road_split
 1,0,은행동,253-1,road_split
-15,0,은행동,253-1,road_split
+31,0,은행동,253-1,road_split
 13,0,은행동,253-1,road_split
 26,0,은행동,684-2,road_split
 1,0,은행동,684-2,road_split
