@@ -628,8 +628,17 @@ function buildOverviewLabels(){
   if(ov.labels){ map.removeLayer(ov.labels); ov.labels=null; }
   ov.labels = L.layerGroup();
   const dongs = manifest.dongs||[];
+  // 동 라벨 수동 미세조정 [Δ경도(+동/오른쪽), Δ위도(+북/위)] 도(°) 단위 — 줌에 안정적, 경계 기준 보정
+  const LABEL_NUDGE = {
+    '정왕본동':[-0.0075, -0.0055],   // 군자동/정왕4동 경계 침범 → 좌하단
+    '거북섬동':[ 0.0264,  0.0022],   // 중심이 서쪽 오이도 연결부 → 동쪽 개발지 안으로
+    '정왕1동' :[ 0,       0.0050],   // 경계 겹침 → 위
+    '연성동'  :[ 0,       0.0052],   // 동 가운데로 → 위
+    '월곶동'  :[ 0,       0.0032],   // 위로 조금
+  };
   const pts  = dongs.map(d=>{ const c=ovCenters[d.code]||d.center;   // 폴리곤 중심 우선
-    return map.latLngToLayerPoint(L.latLng(c[0], c[1])); });
+    const n=LABEL_NUDGE[d.dong];
+    return map.latLngToLayerPoint(L.latLng(c[0]+(n?n[1]:0), c[1]+(n?n[0]:0))); });
   const orig = pts.map(p=> L.point(p.x, p.y));
   const GX=70, GY=22;                            // 라벨 반경(타원) px — 키운 라벨 크기 반영
   for(let it=0; it<80; it++){
