@@ -135,17 +135,27 @@ def parse_spec(spec, san):
             if '-' in a and '-' not in b:                       # 169-35~40
                 base, sub = a.split('-', 1)
                 out = [f"{base}-{n}" for n in range(int(sub), int(b) + 1)]
-            elif '-' not in a and '-' not in b:                 # 491~537
-                out = [str(n) for n in range(int(a), int(b) + 1)]
+            elif '-' not in a and '-' not in b:                 # 491~537 / 1008~3(=1008-3 오타)
+                if int(a) > int(b):                             # 내림차순=틸드 오타 → 'a-b'(부번), 지적도가 검증
+                    out = [f"{a}-{b}"]
+                else:
+                    out = [str(n) for n in range(int(a), int(b) + 1)]
             elif '-' not in a and '-' in b:                     # 491~537-2
                 bm = b.split('-')[0]
                 out = [str(n) for n in range(int(a), int(bm) + 1)] + [b]
-            else:                                               # 169-3~169-7 / 169-3~170-2
+            else:                                               # 169-3~169-7 / 1882-1~1885-9
                 am, asub = a.split('-'); bm, bsub = b.split('-')
-                if am == bm:
+                if am == bm:                                    # 같은 본번 → 부번 범위
                     out = [f"{am}-{n}" for n in range(int(asub), int(bsub) + 1)]
-                else:
-                    out = [a, b] + [str(n) for n in range(int(am) + 1, int(bm))]
+                else:                                           # 본번 넘나듦 A-asub~B-bsub
+                    out = []
+                    # 시작 본번 A: 부번 1부터면 A 전체(bare→본번폴백), 아니면 A-asub..상한(지적도가 필터)
+                    if int(asub) <= 1:
+                        out.append(am)
+                    else:
+                        out += [f"{am}-{n}" for n in range(int(asub), 200)]
+                    out += [str(n) for n in range(int(am) + 1, int(bm))]   # 중간 본번 전체(bare→폴백)
+                    out += [f"{bm}-{n}" for n in range(1, int(bsub) + 1)]  # 끝 본번 B: 1..bsub
         except ValueError:
             return None
         if len(out) > 2000:                                     # 비정상 범위(파싱 오류) 안전장치
@@ -189,8 +199,13 @@ def expand_table(csv_path, valid_beop):
             got = False
             for word in body.split():                          # 지번은 공백으로도 구분됨
                 word = word.split('(')[0].strip(',.')          # 미닫힌 괄호 잔여 제거
+                word = re.sub(r'번지$', '', word)              # 'N번지' → 'N'(지번 접미사 제거)
                 if not word:
                     continue
+                # 지번은 세그먼트 앞쪽에 먼저 온다. '산'이 아닌 한글이 든 단어(아파트명·N동)가
+                # 나오면 그 뒤(연성쉐르빌 501~920, 241동 101~806)는 호수/동 표기 → 지번 아님 → 멈춤.
+                if re.search(r'[가-힣]', word) and not re.fullmatch(r'산?\d[\d~\-ㆍ산]*', word):
+                    break
                 # 오른쪽 끝점에 산이 붙은 범위('산74-1~산87', '산100-4~산104', '13-1~산13-7' 등):
                 # SPEC_FULL이 산 2회를 못 받아 통째 드롭되던 버그를 수정. 오른쪽 산은 그 끝점이
                 # '본번'이라는 신호 → 다른 본번이면 본번 범위(부번은 본번폴백이 채움), 같은 본번이면
@@ -426,6 +441,22 @@ def main():
 
     print("▶ 1) 통·반 표 전개")
     recs, apt_rows, failed = expand_table(TABLE_CSV, set(TARGET_BEOPJEONG))
+    # 별표에 '아파트 이름만' 있어 지번 없던 통 → 외부 검증(juso 주소DB + 지적도 실재)으로 확인한
+    # 지번을 보강(data/apt_jibun_overrides.csv). 추측 아님: 검증된 지번만 등재.
+    ovp = "data/apt_jibun_overrides.csv"
+    if os.path.exists(ovp):
+        import csv as _csv
+        n0 = len(recs)
+        for o in _csv.DictReader(open(ovp, encoding="utf-8-sig")):
+            if str(o.get("code", "")).strip() != ADMIN_CODE:
+                continue
+            try:
+                ot = int(o["통"]); ob = int(o.get("반") or 0)
+            except (ValueError, KeyError):
+                continue
+            recs.append((ot, ob, o["법정동"].strip(), o["지번"].strip(), False))
+        if len(recs) > n0:
+            print(f"   + 아파트 지번 보강(override) {len(recs)-n0}건")
     tdf = pd.DataFrame(recs, columns=["통", "반", "법정동", "지번", "아파트"])
     print(f"   전개 지번행 {len(tdf)}, 고유필지 {tdf[['법정동','지번']].drop_duplicates().shape[0]}, "
           f"아파트반 {len(apt_rows)}, 전개실패 {len(failed)}")

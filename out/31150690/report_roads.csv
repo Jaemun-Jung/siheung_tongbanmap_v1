@@ -214,6 +214,8 @@
 1,0,월곶동,969,road_match
 2,0,월곶동,979,road_match
 2,0,월곶동,979-1,road_match
+15,0,월곶동,994-4,road_match
+15,0,월곶동,994-5,road_match
 7,0,월곶동,1010-3,road_split
 11,0,월곶동,1010-3,road_split
 11,0,월곶동,1010-6,road_match
@@ -229,8 +231,10 @@
 5,0,월곶동,1024,road_split
 17,0,월곶동,1024,road_split
 17,0,월곶동,1025,road_split
+15,0,월곶동,1025,road_split
 2,0,월곶동,1025,road_split
-17,0,월곶동,1026,road_match
+15,0,월곶동,1026,road_split
+17,0,월곶동,1026,road_split
 6,0,월곶동,1027,road_split
 14,0,월곶동,1027,road_split
 5,0,월곶동,1028,road_split
@@ -264,7 +268,9 @@
 17,0,월곶동,1043,road_split
 5,0,월곶동,1044,road_split
 17,0,월곶동,1044,road_split
-5,0,월곶동,1045,road_match
+15,0,월곶동,1044,road_split
+5,0,월곶동,1045,road_split
+15,0,월곶동,1045,road_split
 6,0,월곶동,1046,road_split
 14,0,월곶동,1046,road_split
 6,0,월곶동,1047,road_split

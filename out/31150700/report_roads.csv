@@ -1,8 +1,5 @@
 ﻿통,반,_dong,_jib,_fill
 6,0,하중동,128-1,road_match
-6,0,하중동,327-6,road_match
-6,0,하중동,327-11,road_match
-6,0,하중동,327-12,road_match
 7,0,하중동,420-5,road_match
 7,0,하중동,421-1,road_match
 7,0,하중동,421-3,road_match
@@ -152,8 +149,10 @@
 6,0,하중동,800-98,road_match
 6,0,하중동,800-99,road_match
 6,0,하중동,800-100,road_match
+6,0,하중동,800-101,road_match
 6,0,하중동,800-102,road_match
 6,0,하중동,800-103,road_match
+6,0,하중동,800-104,road_match
 6,0,하중동,800-105,road_match
 6,0,하중동,800-106,road_match
 6,0,하중동,800-107,road_match

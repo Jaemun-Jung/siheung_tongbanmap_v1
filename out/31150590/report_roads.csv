@@ -1,11 +1,8 @@
 ﻿통,반,_dong,_jib,_fill
 5,0,과림동,13-10,road_match
-5,0,과림동,14-3,road_match
 3,0,과림동,42,road_split
 5,0,과림동,42,road_split
 3,0,과림동,42-3,road_match
-5,0,과림동,46-4,road_match
-5,0,과림동,46-5,road_match
 5,0,과림동,64-8,road_match
 5,0,과림동,66-3,road_match
 5,0,과림동,66-8,road_match
@@ -13,9 +10,8 @@
 3,0,과림동,72-7,road_match
 3,0,과림동,72-14,road_split
 5,0,과림동,72-14,road_split
+3,0,과림동,72-19,road_match
 5,0,과림동,72-27,road_match
-3,0,과림동,74-3,road_match
-3,0,과림동,74-6,road_match
 3,0,과림동,82-3,road_match
 3,0,과림동,82-4,road_match
 5,0,과림동,98-2,road_split
@@ -122,6 +118,7 @@
 5,0,과림동,795,road_split
 3,0,과림동,795-4,road_match
 3,0,과림동,795-6,road_match
+5,0,과림동,795-7,road_match
 5,0,과림동,795-8,road_split
 3,0,과림동,795-8,road_split
 3,0,과림동,795-10,road_match
@@ -132,6 +129,7 @@
 3,0,과림동,795-14,road_match
 3,0,과림동,795-15,road_split
 5,0,과림동,795-15,road_split
+3,0,과림동,795-16,road_match
 3,0,과림동,795-17,road_match
 3,0,과림동,795-18,road_match
 3,0,과림동,795-19,road_split
@@ -273,8 +271,6 @@
 2,0,무지내동,56-2,road_match
 2,0,무지내동,56-1,road_match
 2,0,무지내동,55-3,road_match
-2,0,무지내동,13-4,road_match
-2,0,무지내동,13-3,road_match
 3,0,무지내동,1-6,road_match
 1,0,무지내동,산43-3,road_match
 1,0,무지내동,산42-9,road_match
@@ -300,6 +296,7 @@
 2,0,무지내동,556,road_match
 2,0,무지내동,554-6,road_match
 2,0,무지내동,554-5,road_match
+2,0,무지내동,554-4,road_match
 2,0,무지내동,554-1,road_match
 2,0,무지내동,554,road_match
 2,0,무지내동,552-9,road_match

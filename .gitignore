@@ -24,3 +24,6 @@ print_settings.json
 rebuild_all.log
 
 .vercel
+
+# 작업용 감사 스크래치(재생성 가능)
+data/_audit/
