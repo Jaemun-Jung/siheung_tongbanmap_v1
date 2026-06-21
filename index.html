@@ -601,14 +601,18 @@ function showOverview(){
       if(!turf.booleanPointInPolygon(c,f)) c=turf.pointOnFeature(f);
       ovCenters[f.properties.code]=[c.geometry.coordinates[1], c.geometry.coordinates[0]];
     }catch(e){} });
+    // 동 경계 흰색 헤일로(아래 깔기) — 어떤 통 색 위에서도 파란 경계선이 또렷하게
+    ov.adminhalo = L.geoJSON(admin,{interactive:false,
+      style:{color:'#ffffff',weight:5,opacity:.9,fill:false}}).addTo(map);
     // 행정동 전체 영역(빈 땅 포함)을 클릭 가능하게 — 투명 채움, 통 위에 깔아 어디를 눌러도 이동
+    const DLINE='#1e88e5';                          // 밝은 파란 동 경계(흰 헤일로와 함께 가독성↑)
     ov.admin = L.geoJSON(admin,{
-      style:{color:'#333',weight:1.2,opacity:.7,fill:true,fillColor:'#1769aa',fillOpacity:0},
+      style:{color:DLINE,weight:2.6,opacity:1,fill:true,fillColor:'#1769aa',fillOpacity:0},
       onEachFeature:(f,l)=>{ const p=f.properties;
         l.bindTooltip(`${p.dong} — 클릭하면 이동`,{sticky:true});
         l.on('click',()=>loadDong(p.code,p.dong));
-        l.on('mouseover',()=>l.setStyle({fillOpacity:0,weight:2.6,color:'#1769aa'}));  // 채움 없이 외곽선만
-        l.on('mouseout',()=>l.setStyle({fillOpacity:0,weight:1.2,color:'#333'})); }}).addTo(map);
+        l.on('mouseover',()=>l.setStyle({fillOpacity:0,weight:4.5,color:'#0d47a1'}));  // 채움 없이 외곽선만, 진한 파랑 강조
+        l.on('mouseout',()=>l.setStyle({fillOpacity:0,weight:2.6,color:DLINE})); }}).addTo(map);
     // ① 시흥시 외곽선(굵은 먹색) — 주변 시와 구분(스포트라이트와 함께). 데이터 색과 안 충돌
     ov.city = L.geoJSON(city,{interactive:false,
       style:{color:'#1f2937',weight:4,fill:false,opacity:.95}}).addTo(map);
