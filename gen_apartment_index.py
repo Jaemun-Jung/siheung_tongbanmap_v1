@@ -15,8 +15,11 @@ import csv, glob, json, os, re
 DONG_TOK = re.compile(r'(\d+)\s*동')                       # 숫자 동 "101동"
 DONG_RANGE = re.compile(r'(\d+)\s*동?\s*[~～\-]\s*(\d+)\s*동')  # "101~103동", "101동~103동"
 # 한글 동(가·나·다…) — 건물 동 글자만, 토큰 경계로(법정동 '미산동'의 '산동' 오인 방지)
+KOR_ORD = '가나다라마바사아자차카타파하'
 DONG_KOR = re.compile(r'(?:^|[\s(（])([가나다라마바사아자차카타파하])동')
 DONG_ALPHA = re.compile(r'(?:^|[\s(（])([A-Za-z])동')         # 알파벳 동 "A동"
+DONG_KOR_RANGE = re.compile(r'(?:^|[\s(（])([가나다라마바사아자차카타파하])\s*동?\s*[~～\-]\s*([가나다라마바사아자차카타파하])\s*동')   # "가동~라동"
+DONG_ALPHA_RANGE = re.compile(r'(?:^|[\s(（])([A-Za-z])\s*동?\s*[~～\-]\s*([A-Za-z])\s*동')   # "A동~C동"
 JIBUN = re.compile(r'산?\d[\d\-]*')                          # 지번
 JIBUN_ISH = re.compile(r'산?\d[\d\-～~ㆍ·,]*(?:외)?|\d+필지|외')  # 지번·"869-1～7"·"289-9ㆍ56"·"…외"·"N필지"(이름 추출 멈춤)
 # 동 뒤 호범위/메모(전체 등) 추출 — 동번호 다음부터 콤마/다음 동/끝까지
@@ -83,6 +86,14 @@ def main():
             dongs.update(DONG_TOK.findall(txt))
             dongs.update(DONG_KOR.findall(txt))
             dongs.update(DONG_ALPHA.findall(txt))
+            for a, b in DONG_KOR_RANGE.findall(txt):          # 가동~라동 → 가·나·다·라
+                ia, ib = KOR_ORD.find(a), KOR_ORD.find(b)
+                if 0 <= ia <= ib:
+                    dongs.update(KOR_ORD[ia:ib + 1])
+            for a, b in DONG_ALPHA_RANGE.findall(txt):         # A동~C동 → A·B·C
+                ia, ib = ord(a.upper()), ord(b.upper())
+                if ia <= ib < ia + 26:
+                    dongs.update(chr(c) for c in range(ia, ib + 1))
             # 호범위/메모는 숫자 동만(한글·알파벳 동은 호 표기 거의 없음)
             ho = {d: (h or "").strip(" ·~-") for d, h in HO_AFTER.findall(txt)}
             for d in sorted(dongs):
