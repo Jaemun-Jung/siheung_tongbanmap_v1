@@ -40,6 +40,7 @@ SHP_ENCODING = "cp949"         # 한글 깨지면 config에서 'utf-8'/'euc-kr'
 SOURCE_CRS_FALLBACK = "EPSG:5186"   # .prj 없을 때 가정 (중부원점 GRS80)
 CONFLICT_POLICY = "min_tong"   # 충돌 시 낮은 통 번호 우선
 BONBUN_FALLBACK = True         # 본번만 적힌 표 항목 → 해당 본번 전체 부번을 같은 통으로
+CLIP_TO_ADMIN = True           # 매칭 필지를 공식 행정동경계로 클립(공유 법정동 본번폴백 과대확장 방지). 군자동(골든)은 config에서 false
 SPLIT_PARCEL_TONG = []         # (법정동, 본번, 분할위도, 남통, 북통, 설명) — 지번없는 아파트통 도로분할
 # --- 2단계: 도로 경계 보정 ---
 ROAD_FILL = False              # 도로(지목 도) 필지를 인접 통에 배분할지
@@ -67,7 +68,7 @@ def apply_config(cfg, shp_path, out_root):
     """config 값을 모듈 전역으로 주입하고 출력 폴더 out/{admin_code}/ 를 만든다."""
     global TABLE_CSV, SHP_PATH, OUT_DIR, ADMIN_DONG, ADMIN_CODE
     global TARGET_BEOPJEONG, BJD_CODE_TO_NAME, SHP_ENCODING, SOURCE_CRS_FALLBACK
-    global CONFLICT_POLICY, BONBUN_FALLBACK, SPLIT_PARCEL_TONG
+    global CONFLICT_POLICY, BONBUN_FALLBACK, SPLIT_PARCEL_TONG, CLIP_TO_ADMIN
     global ROAD_FILL, ROAD_JIMOK, ROAD_SLIVER_M2
     ADMIN_DONG = cfg["admin_dong"]
     ADMIN_CODE = str(cfg["admin_code"])
@@ -79,6 +80,7 @@ def apply_config(cfg, shp_path, out_root):
     SOURCE_CRS_FALLBACK = cfg.get("source_crs_fallback", "EPSG:5186")
     CONFLICT_POLICY     = cfg.get("conflict_policy", "min_tong")
     BONBUN_FALLBACK     = cfg.get("bonbun_fallback", True)
+    CLIP_TO_ADMIN       = cfg.get("clip_to_admin", True)
     SPLIT_PARCEL_TONG = [
         (s["dong"], str(s["bonbun"]), float(s["split_lat"]),
          int(s["south_tong"]), int(s["north_tong"]), s.get("desc", ""))
@@ -570,38 +572,48 @@ def main():
             road_gdf.drop(columns="geometry").to_csv(
                 f"{OUT_DIR}/report_roads.csv", index=False, encoding="utf-8-sig")
 
-    print("▶ 5) 4326 변환 + 통 단위 병합 + 행정동 외곽선")
+    print("▶ 5) 4326 변환 + (선택)행정동 클립 + 통 단위 병합 + 행정동 외곽선")
     matched = matched.to_crs("EPSG:4326")
     matched["통"] = matched["통"].astype(int)
-    tong_gdf = matched.dissolve(by="통").reset_index()[["통", "geometry"]]
-    tong_gdf["geometry"] = tong_gdf.buffer(0)   # 위상 정리
-    # 통 번호 라벨 위치(폴리곤 내부 한 점)
-    lp = tong_gdf.representative_point()
-    tong_gdf["lon"] = lp.x.round(7)
-    tong_gdf["lat"] = lp.y.round(7)
+    admin_poly = None                            # 공식 행정동경계 폴리곤(통 기하 클립용)
 
-    # 행정동(군자동) 외곽 경계: 공식 행정동경계가 있으면 사용, 없으면 대상필지 병합
+    # 행정동 외곽 경계 먼저 로드(클립·검증에 사용): 공식 경계 있으면 사용, 없으면 대상필지 병합
     admin_official = load_admin_outline()
     if admin_official is not None:
         admin_gdf = admin_official.dissolve().reset_index(drop=True)
         admin_gdf["geometry"] = admin_gdf.buffer(0)
         print("   행정동 외곽선: 공식 행정동경계 사용(ADM_CD", ADMIN_CODE + ")")
-        # 검증: 매칭 필지가 행정동 경계 안에 드는지(코드 매핑 오류 탐지)
-        gp = admin_gdf.geometry.iloc[0]
-        inside = matched.representative_point().within(gp).mean()
-        print(f"   매칭 필지의 행정동 내부 비율 {inside*100:.1f}% (낮으면 법정동코드 매핑 오류)")
-        bad = matched[~matched.representative_point().within(gp)]
+        # 검증/클립: 매칭 필지가 행정동 경계 안에 드는지
+        gp = admin_gdf.geometry.iloc[0]; admin_poly = gp
+        inside_mask = matched.representative_point().within(gp)
+        print(f"   매칭 필지의 행정동 내부 비율 {inside_mask.mean()*100:.1f}% (낮으면 법정동코드 매핑 오류)")
+        bad = matched[~inside_mask]
         if len(bad):
             bad[["통","_dong","_jib"]].rename(columns={"_dong":"법정동","_jib":"지번"}).to_csv(
                 f"{OUT_DIR}/report_outside_admin.csv", index=False, encoding="utf-8-sig")
             outside_tongs = sorted(int(t) for t in bad["통"].unique())
             print(f"   ⚠ 행정동 밖 필지 {len(bad)}개 (통 {outside_tongs}) → report_outside_admin.csv")
+            if CLIP_TO_ADMIN:                       # 공유 법정동 본번폴백 과대확장 제거
+                matched = matched[inside_mask].copy()
+                print(f"   ✂ clip_to_admin: 행정동 밖 {len(bad)}필지 제외 → 통 경계 동 안으로")
     else:
         admin = sub.to_crs("EPSG:4326")[["geometry"]].copy()
         admin["geometry"] = admin.buffer(0)
         admin_gdf = admin.dissolve().reset_index(drop=True)
         admin_gdf["geometry"] = admin_gdf.buffer(0)
         print("   행정동 외곽선: 대상필지 병합(행정동경계 파일 없음)")
+
+    # (클립된) matched로 통 단위 병합
+    tong_gdf = matched.dissolve(by="통").reset_index()[["통", "geometry"]]
+    tong_gdf["geometry"] = tong_gdf.buffer(0)   # 위상 정리
+    # 통 폴리곤을 행정동 경계로 기하 클립 → 경계 가로지르는 잔여(straddle)까지 제거
+    if CLIP_TO_ADMIN and admin_poly is not None:
+        tong_gdf["geometry"] = tong_gdf.geometry.intersection(admin_poly).buffer(0)
+        tong_gdf = tong_gdf[~tong_gdf.geometry.is_empty].reset_index(drop=True)
+    # 통 번호 라벨 위치(폴리곤 내부 한 점)
+    lp = tong_gdf.representative_point()
+    tong_gdf["lon"] = lp.x.round(7)
+    tong_gdf["lat"] = lp.y.round(7)
 
     parcels_out = matched[["통","반","_dong","_jib","_fill","geometry"]].rename(
         columns={"_dong":"법정동","_jib":"지번","_fill":"fill_method"})

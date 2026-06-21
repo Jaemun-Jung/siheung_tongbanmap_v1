@@ -11,6 +11,7 @@
   "shp_encoding": "cp949",
   "conflict_policy": "min_tong",
   "bonbun_fallback": true,
+  "clip_to_admin": false,
   "road_fill": true,
   "road_jimok": ["도"],
   "road_split_sliver_m2": 5.0,
