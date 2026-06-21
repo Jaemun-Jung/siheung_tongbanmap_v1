@@ -188,14 +188,13 @@
     <div class="secbody">
       <div class="row tight">
         <button class="b" id="draw-tong">✏️ 통 그리기</button>
-        <button class="b" id="draw-export">내보내기</button>
       </div>
       <div class="row tight" id="draw-controls" style="display:none">
         <button class="b" id="draw-undo">↩ 마지막 점 취소</button>
         <button class="b" id="draw-cancel">✕ 그리기 취소</button>
       </div>
       <div id="manual-list" class="manlist"></div>
-      <div class="hint">클릭=점, <b>더블클릭=완료</b>, <b>Backspace</b>=마지막 점 취소, <b>ESC</b>=처음부터/취소 · 검토중(빨간 점선)으로 저장 → 내보내기로 담당자 검토</div>
+      <div class="hint">클릭=점, <b>더블클릭=완료</b>, <b>Backspace</b>=마지막 점 취소, <b>ESC</b>=처음부터/취소 · 검토중(빨간 점선)으로 이 브라우저에 저장됨</div>
     </div>
   </details>
 
@@ -959,7 +958,7 @@ map.on('pm:create', e=>{
   (manualData[curCode] = manualData[curCode] || []).push(
     { 통:+t, reason, date:new Date().toISOString().slice(0,10), geometry:gj.geometry });
   saveManual(); renderManual();
-  $('res').innerHTML = `<b>${t}통 (검토중)</b> 추가됨 — 겹친 기존 통은 경계가 자동 조정됩니다. 내보내기로 담당자에게 전달하세요.`;
+  $('res').innerHTML = `<b>${t}통 (검토중)</b> 추가됨 — 겹친 기존 통은 경계가 자동 조정됩니다.`;
 });
 function setDrawUI(on){
   drawing = on;
@@ -1001,17 +1000,6 @@ function renderManualList(){
     if(!manualData[curCode].length) delete manualData[curCode];
     saveManual(); renderManual(); });
 }
-$('draw-export').onclick = ()=>{
-  const feats=[];
-  Object.entries(manualData).forEach(([code,arr])=> arr.forEach(m=> feats.push(
-    {type:'Feature',properties:{code,통:m.통,source:'manual',reason:m.reason,date:m.date},geometry:m.geometry})));
-  if(!feats.length){ setStatus('내보낼 수동 통이 없습니다(먼저 그리세요).'); return; }
-  const blob=new Blob([JSON.stringify({type:'FeatureCollection',features:feats},null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='manual_tongs.geojson'; document.body.appendChild(a); a.click(); a.remove();
-  setStatus(`수동 통 ${feats.length}개 내보냄 (manual_tongs.geojson → 담당자 검토).`);
-};
-
 // ---------- 모바일 패널 ----------
 $('panel-toggle').onclick = ()=> $('panel').classList.toggle('open');
 </script>
