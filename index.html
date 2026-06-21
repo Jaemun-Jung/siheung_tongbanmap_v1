@@ -34,6 +34,8 @@
  button.wide{width:100%;height:34px;margin-top:6px;font-weight:600}
  #res{margin-top:10px;color:#222;line-height:1.55;border-top:1px solid #eee;padding-top:8px;font-size:15px}
  #res:empty{display:none}                                 /* 비었을 땐 테두리 줄도 숨김 */
+ .search-pin{width:16px;height:16px;border-radius:50%;background:#e53935;border:3px solid #fff;animation:sppulse 1.4s ease-out infinite}
+ @keyframes sppulse{0%{box-shadow:0 0 0 0 rgba(229,57,53,.55),0 1px 4px rgba(0,0,0,.5)}70%{box-shadow:0 0 0 13px rgba(229,57,53,0),0 1px 4px rgba(0,0,0,.5)}100%{box-shadow:0 0 0 0 rgba(229,57,53,0),0 1px 4px rgba(0,0,0,.5)}}
  #res b{font-size:18px;color:var(--blue)}                 /* 통/반 강조 — 클릭·검색 시 잘 보이게 */
  #res .aptrow b{font-size:13.5px;color:#111}              /* 아파트 검색 목록은 줄이 많아 작게 유지 */
  .review-sec>summary{cursor:pointer;color:#999;font-size:12px;margin-top:7px}  /* 담당자 검토 — 접이식, 평소 은은하게 */
@@ -468,7 +470,7 @@ function clearGroup(g){ for(const k in g){ if(g[k]){ map.removeLayer(g[k]); g[k]
 
 // ---------- 단일 동 상세 ----------
 function loadDong(code, dong, afterLoad){
-  clearGroup(ov); clearGroup(cur); curParcels=null;
+  clearGroup(ov); clearGroup(cur); curParcels=null; clearSearchMarker();
   selected.clear(); updateSelPanel(); curCode=code;
   $('cur-dong').textContent='📍 '+dong;
   $('dong-badge').textContent=dong; $('dong-badge').style.display='block';
@@ -569,7 +571,7 @@ function loadNeighbors(curCode){
 
 // ---------- 전체지도 ----------
 function showOverview(){
-  clearGroup(cur); clearGroup(ov); curParcels=null; curCode=null;
+  clearGroup(cur); clearGroup(ov); curParcels=null; curCode=null; clearSearchMarker();
   selected.clear(); updateSelPanel();
   $('cur-dong').textContent='시흥시 전체'; $('dong-badge').style.display='none';
   $('dong-select').value=''; $('tong-select').style.display='none'; setStatus('전체지도 불러오는 중…');
@@ -760,7 +762,8 @@ function aptGo(code, dong, t, label){
   loadDong(code, dong, ()=>{
     selectSingle(t);
     let lyr=null; if(cur.parcels) cur.parcels.eachLayer(l=>{ if(+l.feature.properties.통===t && !lyr) lyr=l; });
-    if(lyr) map.fitBounds(lyr.getBounds().pad(.4),{maxZoom:18});
+    if(lyr){ map.fitBounds(lyr.getBounds().pad(.4),{maxZoom:18});
+      dropSearchMarker(lyr.getBounds().getCenter(), `<b>${label}</b><br>${dong} ${t}통`); }
     $('res').innerHTML = `<b>${label}</b> → <b>${dong} ${t}통</b>` +
       (lyr ? ' <small>(지도 표시됨)</small>' : ' <small style="color:#c0392b">(지도에 미표시 — 동·호 분할 통, 안내만)</small>');
     setStatus('');
@@ -794,6 +797,15 @@ function searchJibun(v){
   });
 }
 // 인덱스 결과 [code,dong,통,반]로 이동 + 통 강조 + 해당 지번(없으면 통)으로 줌
+// 검색 결과 위치 핀(마커) — 어디인지 한눈에 보이게
+let searchMarker = null;
+function clearSearchMarker(){ if(searchMarker){ map.removeLayer(searchMarker); searchMarker=null; } }
+function dropSearchMarker(latlng, html){
+  clearSearchMarker();
+  searchMarker = L.marker(latlng, { zIndexOffset:3000, keyboard:false,
+    icon: L.divIcon({className:'', html:'<div class="search-pin"></div>', iconSize:[22,22], iconAnchor:[11,11]}) }).addTo(map);
+  if(html) searchMarker.bindPopup(html, {offset:[0,-8]}).openPopup();
+}
 function navToHit(hit, dongName, jibun, label){
   const [code,dong,t,b]=hit;
   setStatus(`${dong} 불러오는 중…`);
@@ -804,7 +816,8 @@ function navToHit(hit, dongName, jibun, label){
       if(p.통===t && !lyr) lyr=l;
       if(!exact && String(p.지번)===jibun && p.법정동===dongName) exact=l; });
     const tgt=exact||lyr;
-    if(tgt) map.fitBounds(tgt.getBounds().pad(.4),{maxZoom:18});
+    if(tgt){ map.fitBounds(tgt.getBounds().pad(.4),{maxZoom:18});
+      dropSearchMarker(tgt.getBounds().getCenter(), `<b>${dongName} ${jibun}</b><br>${dong} ${t}통${b?' '+b+'반':''}`); }
     $('res').innerHTML=`<b>${label||(dongName+' '+jibun)}</b> → <b>${dong} ${t}통${b?' '+b+'반':''}</b> <small>(별표 지번)</small>`;
     setStatus('');
   });
