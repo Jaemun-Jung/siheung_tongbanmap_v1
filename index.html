@@ -668,7 +668,17 @@ function search(){
   else searchJibun(v);                         // 지번
 }
 // ---------- 아파트 동(棟) 검색 — 이름(+동)으로 통/반 조회 ----------
-const aptNorm = s => (s||'').replace(/\s+/g,'').replace(/아파트/g,'').replace(/Ⓐ/g,'');
+const aptNorm = s => (s||'').toLowerCase().replace(/\s+/g,'').replace(/아파트/g,'').replace(/Ⓐ/g,'');
+// 이름 유사도(0~1): 완전일치=1, 한쪽이 다른쪽 포함=0.9, 그 외 글자 바이그램 Dice계수
+function aptSim(q, n){
+  if(!q||!n) return 0;
+  if(q===n) return 1;
+  if(n.includes(q)||q.includes(n)) return 0.9;
+  const bg=s=>{ const a=[]; for(let i=0;i<s.length-1;i++) a.push(s.slice(i,i+2)); return a; };
+  const A=bg(q), B=new Set(bg(n)); if(!A.length||!B.size) return 0;
+  let inter=0; A.forEach(x=>{ if(B.has(x)) inter++; });
+  return 2*inter/(A.length+B.size);
+}
 function searchApartment(v){
   if(!aptIndex) return false;
   const dm = v.match(/(\d+)\s*동/);            // "104동" 추출
@@ -677,16 +687,20 @@ function searchApartment(v){
   if(dm) nameRaw = nameRaw.replace(dm[0],' ');
   nameRaw = nameRaw.replace(/\d+\s*호[\s\d~～\-호]*/g,' ');   // 호 표기 제거
   const q = aptNorm(nameRaw);
-  if((q.match(/[가-힣A-Za-z]/g)||[]).length < 2) return false; // 이름(한글/영문 2자+) 없으면 아파트 검색 아님
-  let hits = aptIndex.filter(it => it.n.includes(q));
-  if(bnum!=null) hits = hits.filter(it => it.동===bnum);
+  if((q.match(/[가-힣a-z0-9]/g)||[]).length < 2) return false; // 이름(2자+) 없으면 아파트 검색 아님
+  // 이름별 유사도(대소문자 무시) — 일부만 비슷해도(시흥 빠짐, LH 대소문자, 단지번호 차이) 잡는다
+  const TH = 0.45, score = {};
+  aptIndex.forEach(it => { if(!(it.n in score)) score[it.n] = aptSim(q, it.n.toLowerCase()); });
+  let hits = aptIndex.filter(it => score[it.n] >= TH);
   if(!hits.length) return false;
+  if(bnum!=null){ const f = hits.filter(it => it.동===bnum); if(f.length) hits = f; }  // 동 있으면 우선, 없으면 단지 전체
+  // 유사도 높은 순 → 동명 → 통 → 반 → 동번호
+  hits.sort((a,b)=> score[b.n]-score[a.n] || a.dong.localeCompare(b.dong) || a.통-b.통 || a.반-b.반 || a.동-b.동);
   renderAptResults(v, hits, bnum);
   return true;
 }
 function renderAptResults(query, hits, bnum){
-  // 정렬: 동명→통→반→동번호
-  hits = hits.slice().sort((a,b)=> a.dong.localeCompare(b.dong) || a.통-b.통 || a.반-b.반 || a.동-b.동);
+  // hits는 호출부에서 유사도 높은 순으로 정렬되어 옴
   const many = hits.length > 30;
   const shown = hits.slice(0, 30);
   const rows = shown.map(it=>{
