@@ -563,22 +563,28 @@ function search(){
   else searchJibun(v);                         // 지번(현재 동)
 }
 // 지번 검색(시 전체) — "법정동 지번"(예: 거모동 1859) 또는 지번만. 별표 인덱스로 통 조회→이동
+// 본번만 입력(예 89)했는데 부번만 있으면(89-1) 같은 본번 첫 필지로 보정.
 function searchJibun(v){
   const m=v.match(/^\s*(\S*?[동리])?\s*(산?\d+(?:-\d+)?)\s*$/);
   if(!m){ setStatus('지번 형식이 아닙니다 (예: 거모동 1859 또는 1859).'); return; }
-  const dn=m[1]||'', jb=m[2];
+  const dn=m[1]||'', jb=m[2], bon=jb.split('-')[0];
   setStatus('지번 검색 중…');
   ensureIndex().then(idx=>{
+    const sameBon = k => { const j=k.split('|')[1]; return j===bon || j.startsWith(bon+'-'); };
+    const go = (k, label) => { const [b,j]=k.split('|'); navToHit(idx[k], b, j, label); };
     if(dn){                                            // 법정동+지번 → 시 전체 정확 조회
-      const hit=idx[dn+'|'+jb];
-      if(hit) return navToHit(hit, dn, jb, `${dn} ${jb}`);
+      if(idx[dn+'|'+jb]) return go(dn+'|'+jb, `${dn} ${jb}`);
+      const fb=Object.keys(idx).filter(k=>k.startsWith(dn+'|') && sameBon(k)).sort();   // 본번 보정
+      if(fb.length) return go(fb[0], `${dn} ${jb} → ${fb[0].split('|')[1]}`);
       setStatus(`"${dn} ${jb}" 별표에 없음(통 미상). 지번을 확인하세요.`); return;
     }
-    const keys=Object.keys(idx).filter(k=>k.endsWith('|'+jb));   // 지번만 → 시 전체 검색
+    let keys=Object.keys(idx).filter(k=>k.endsWith('|'+jb));     // 지번만 → 시 전체 검색
+    if(!keys.length) keys=Object.keys(idx).filter(sameBon);      // 본번 보정
     if(!keys.length){ setStatus(`"${jb}" 지번을 못 찾음. 법정동과 함께 입력해 보세요(예: 거모동 ${jb}).`); return; }
-    if(keys.length===1){ const k=keys[0]; return navToHit(idx[k], k.split('|')[0], jb, k.replace('|',' ')); }
+    keys.sort();
+    if(keys.length===1) return go(keys[0], keys[0].replace('|',' '));
     const curK=keys.find(k=>idx[k][0]===curCode);              // 여러 곳이면 현재 동 우선
-    if(curK){ return navToHit(idx[curK], curK.split('|')[0], jb, curK.replace('|',' ')); }
+    if(curK) return go(curK, curK.replace('|',' '));
     const dongs=[...new Set(keys.map(k=>k.split('|')[0]))];
     setStatus(`"${jb}"이 여러 곳에 있습니다(법정동 ${dongs.length}개). 함께 입력: ${dongs.slice(0,6).join(', ')}${dongs.length>6?' 등':''}`);
   });
