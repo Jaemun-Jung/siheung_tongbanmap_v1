@@ -10,6 +10,13 @@
  *{box-sizing:border-box}
  body{margin:0;font-family:-apple-system,"Apple SD Gothic Neo",sans-serif}
  #map{position:absolute;top:0;bottom:0;left:0;right:0;background:#eef}
+ /* 동/통 폴리곤(SVG 경로)을 클릭·드래그할 때 브라우저가 그 경로 둘레에 그리는
+    기본 포커스/액티브 외곽선(= 동을 감싸는 검은 네모)을 모든 상태에서 제거 */
+ .leaflet-interactive:focus,
+ .leaflet-interactive:focus-visible,
+ .leaflet-interactive:active,
+ .leaflet-container svg path:focus,
+ path.leaflet-interactive{ outline:none !important; }
  .panel{position:absolute;z-index:1000;top:10px;left:10px;width:280px;max-height:calc(100% - 20px);
    overflow:auto;background:#fff;border-radius:12px;box-shadow:0 1px 8px rgba(0,0,0,.3);
    padding:12px 14px;font-size:13px}
