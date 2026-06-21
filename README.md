@@ -1,52 +1,96 @@
-# 시흥시 통반경계도 빌드 (군자동 행정동)
+# 시흥시 통·반 조회 지도 (v1)
 
-별표(통·반 관할구역)와 연속지적도를 합쳐 **통 경계가 자동으로 그려지는 인터랙티브 지도**를 만드는 파이프라인입니다.
-지번을 사람이 선으로 긋는 게 아니라, 같은 통에 속한 필지를 병합해 경계가 자동 생성됩니다.
+시흥시 **20개 행정동 전체**의 통·반 경계를 한 곳에서 조회하는 인터랙티브 웹 지도입니다.
+시행규칙 [별표]의 통·반 관할구역(지번)과 연속지적도를 합쳐, **같은 통에 속한 필지를 병합**해
+통 경계를 자동으로 그립니다. 사람이 선을 긋는 게 아니라 데이터로 경계가 만들어집니다.
 
-## 🗺️ 라이브 지도
-**https://jaemun-jung.github.io/siheung-gunja-tongban-map/** ← 휴대폰으로 아래 QR을 찍으면 바로 열립니다.
+> 한 장짜리 셸(`index.html`)이 `out/`의 동별 GeoJSON을 그때그때 불러오는 구조라,
+> 20개 동을 가볍게 오가며 볼 수 있습니다.
 
-<img src="share_qr.png" alt="공유 QR" width="220"/>
+## 주요 기능
 
-- 통별 색·경계 + **통 번호 라벨**, 지번 검색, 면/경계선·번호·동경계 토글, OSM 배경
-- 굵은 검정선 = **공식 군자동 행정동 경계**(주변 타동·타시 구분)
-- 점선(31·32통) = 별표에 지번이 없는 **군자서희스타힐스**를 실제 필지(거모동 1859)를 도로 기준으로 갈라 표시한 추정치
+- **행정동 선택 / 전체지도** — 시 전체 통 경계 + 동 라벨에서 동을 클릭해 상세로 진입
+- **검색 3종** — 지번(`신천동 771-5`), 도로명(`신천로 82`, juso 변환), 아파트 이름+동(`동보아파트 104동`)
+  - 검색 결과 위치에 **빨간 핀 + 통·반 팝업** 표시
+- **통·반 조회** — 통 선택, 다중 통 강조, 통 번호 라벨, 인접 통 자동 색 구분(지도 4색)
+- **빠진 통 직접 그리기** — 시행규칙엔 있으나 지적도로 자동 분할이 안 되는 통(아파트 동별 분할 등)을
+  지도에서 직접 그려 이 브라우저에 저장(검토용)
+- **영역 인쇄** — 지도에서 사각형을 드래그해 그 부분만 **A4 / B4 / A3 / A1(전지)** 로 인쇄·PDF 저장.
+  제목 표시 on/off(회의실 상황판은 off). 통 경계·번호는 벡터라 확대해도 선명
+- **배경지도** — OSM(기본). 위성·지적편집도는 브이월드 키 자리(미연결)
+- **담당자 검토 모드** — `?admin=1` 로 접속 시 미배정·검증 경고 표시
 
-> 데이터 핵심: 법정동코드 **거모동=4139012700, 군자동=4139012800**(행정동경계 폴리곤 내부 비율로 공간검증 확정).
-> 별표가 본번 범위로 적힌 부분은 지적도 부번분할과 안 맞아, **본번 폴백**으로 보완(매칭 4,078필지).
+## 로컬에서 실행
 
-## 파일
-- `build_tongban_map.py` — 전체 파이프라인 (전개 → 조인 → 병합 → 지도)
-- `군자동_통반_관할구역.csv` — 시행규칙 [별표2]에서 추출한 군자동 통·반 표 (입력)
-- `requirements.txt`
+`file://` 직접 열기는 브라우저 보안(CORS)으로 GeoJSON을 못 불러옵니다. **반드시 로컬 서버**로 여세요.
 
-## 준비물 (사용자가 받을 단 하나의 외부 파일)
-**시흥시 연속지적도 SHP** — 공공데이터포털(data.go.kr) 또는 국가공간정보포털 오픈마켓(market.nsdi.go.kr)에서
-"연속지적도"를 시·군·구(시흥시) 단위로 다운로드. `.shp/.shx/.dbf/.prj`(가능하면 `.cpg`)가 한 세트입니다.
-
-## 실행 (Claude Code / 로컬)
 ```bash
-pip install -r requirements.txt          # GDAL 포함 환경 필요
-# build_tongban_map.py 의 CONFIG > SHP_PATH 를 받은 파일 경로로 수정
-python build_tongban_map.py
+# 저장소 루트에서
+python -m http.server 8000
+# 브라우저에서 http://localhost:8000/ 접속
 ```
-처음 실행하면 **SHP 컬럼 스키마**가 출력됩니다. 자동탐지된 필드(PNU/지번/법정동명)가
-실제와 다르면 CONFIG 상단의 `*_CANDIDATES`에 실제 컬럼명을 추가하고 다시 실행하세요.
-한글이 깨지면 `SHP_ENCODING`을 `utf-8`/`euc-kr`로 바꿔 보세요.
 
-## 산출물 (`out/`)
-- `gunja_map.html` — 더블클릭하면 열리는 단독 지도 (통별 색·경계, 지번 검색, 면/경계선 토글, OSM 배경)
-- `gunja_parcels.geojson`, `gunja_tong.geojson`
-- 리포트 CSV
-  - `report_conflicts.csv` — 한 지번이 두 통에 잡힌 경우(별표 원문 중첩). 지도는 낮은 통으로 칠함 → 검수용
-  - `report_unassigned_parcels.csv` — 거모/군자 필지인데 어떤 통에도 안 들어간 필지
-  - `report_table_not_in_shp.csv` — 표엔 있으나 지적도에 없는 지번(본번 과생성분 다수 → 대개 정상)
+도로명 검색을 쓰려면 `index.html` 상단의 `JUSO_KEY`(juso.go.kr 개발키)가 필요합니다.
+클라이언트(브라우저)에서 동작하는 도로명주소 검색용 무료 개발키입니다.
 
-## 알아둘 한계
-- **아파트형 반(약 38%)**: 한 지번을 아파트 동·호로 쪼갠 반은 지번이 같아 필지가 하나라,
-  통/필지 위치는 표시되지만 필지 내부의 반 경계는 그릴 수 없습니다(별표 정의상). 건물 도형 데이터가 별도로 있어야 가능.
-- **도로명주소 검색**: 현재 지도는 지번 검색입니다. 도로명주소→통은 juso.go.kr(도로명주소 개발자센터, 무료) 지오코딩을 붙이면 됩니다.
+## 데이터 파이프라인 (재생성)
 
-## 시흥시 전체로 확장
-`expand_table`은 별표 전체에 동일하게 적용됩니다. CSV를 동 전체로 바꾸고
-`TARGET_BEOPJEONG`/대상 행정동만 늘리면 동일 파이프라인으로 시 전체 경계도를 만들 수 있습니다.
+원본이 바뀌었을 때(시행규칙 별표 개정, 연속지적도 갱신)만 다시 돌리면 됩니다.
+
+```bash
+pip install -r requirements.txt        # geopandas/shapely/pyogrio/pyproj 등 (GDAL 포함)
+
+python build_tongban_map.py            # 별표 전개 → 지적도 조인 → 통 병합 → 동별 산출
+python clean_tong.py                   # 통 폴리곤 내부 구멍·잔선 정리
+python split_apartments.py             # 한 지번을 아파트 동별로 나눈 통 분할(예: 군자동 동보 23/24통)
+python assign_tong_colors.py           # 인접 통이 다른 색이 되도록 색 슬롯 배정(_tong.geojson에 cidx)
+python gen_manifest.py                 # out/manifest.json (동 목록·중심·범위)
+python gen_overview.py                 # 전체지도용 통합 GeoJSON(all_tong/all_admin/city_boundary)
+python gen_address_index.py            # 지번 → 통·반 검색 인덱스
+python gen_apartment_index.py          # 아파트 이름+동 → 통·반 검색 인덱스
+python gen_issues.py                   # 검증 경고(통과 떨어진 필지 등)
+python gen_unassigned.py               # 미배정 대지 데이터
+python verify_tongban.py               # 별표 ↔ 산출물 정합성 검증
+```
+
+> Windows 콘솔에서 한글이 깨지면 `PYTHONUTF8=1 PYTHONIOENCODING=utf-8` 를 함께 주세요.
+> 고해상도 벡터 PDF(제목·범례·축척바·방위표)가 필요하면 `python gen_print.py --dong <행정동코드>`.
+
+## 디렉터리 구조
+
+```
+index.html                 # 웹 지도 셸(메인 진입점)
+requirements.txt
+build_tongban_map.py       # 핵심 파이프라인 (별표 파서 + 지적도 조인 + 통 병합)
+clean_tong.py / split_apartments.py / assign_tong_colors.py
+gen_manifest.py / gen_overview.py / gen_address_index.py / gen_apartment_index.py
+gen_issues.py / gen_unassigned.py / gen_print.py / verify_tongban.py
+scan_unassigned_anomalies.py        # "별표엔 있는데 미배정" 이상치 점검
+
+data/{행정동코드}/
+  config.json              # 동별 설정(행정동·법정동 코드, 도로보정 옵션 등)
+  관할구역.csv             # 시행규칙 별표에서 추출한 통·반 표(입력)
+
+out/{행정동코드}/
+  {동}_tong.geojson        # 통 단위 경계(통별 색·번호)
+  {동}_parcels.geojson     # 필지 단위(지번 검색용)
+  {동}_admin.geojson       # 행정동 경계
+out/overview/              # 전체지도용 통합본
+out/manifest.json, out/address_index.json, out/apartment_index.json
+```
+
+## 데이터 출처
+
+- **시흥시 행정기구 및 정원 등에 관한 규칙 [별표]** — 통·반 관할구역(지번). `data/{코드}/관할구역.csv`로 추출
+- **연속지적도(SHP)** — 공공데이터포털(data.go.kr) / 국가공간정보포털 오픈마켓(market.nsdi.go.kr).
+  용량이 커 저장소에는 포함하지 않습니다(`.gitignore`). 필지 경계의 원본
+- **OpenStreetMap** — 배경지도 및 도로·건물 보조 데이터
+- **행정안전부 행정동 경계** — 동 경계 폴리곤
+
+## 참고·주의
+
+- **추정 경계 표시** — 별표에 지번이 없거나 본번 범위로만 적혀 지적도와 안 맞는 구간은
+  본번 폴백·도로 분할 등으로 보완한 **추정치**이며, 별표가 바뀌지 않는 한 임의로 통 배정을 고치지 않습니다
+- **연속지적도 SHP는 추적되지 않습니다** — 위 출처에서 직접 받아 파이프라인을 돌리세요
+- **JUSO_KEY는 클라이언트용 개발키**입니다. 배포 웹페이지에서도 보이는 키 종류이며, 운영 시 정식 키로 교체 권장
+- `*_print.pdf/.png`, `print_settings.json`, `.venv/` 등 재생성 가능한 산출물은 `.gitignore` 처리
