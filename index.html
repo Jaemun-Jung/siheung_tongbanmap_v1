@@ -328,11 +328,12 @@ const helpQ = key => `<span class="help" data-help="${HELP[key]}">?</span>`;
 document.addEventListener('click', e=>{
   const h=e.target.closest('.help'), pop=$('helppop');
   if(h){ e.preventDefault(); e.stopPropagation();
-    pop.textContent=h.dataset.help; pop.style.display='block';
+    if(pop.style.display==='block' && pop._owner===h){ pop.style.display='none'; pop._owner=null; return; }  // 같은 ? 다시 누르면 닫기(토글)
+    pop.textContent=h.dataset.help; pop.style.display='block'; pop._owner=h;
     const r=h.getBoundingClientRect();
     pop.style.left=Math.max(8, Math.min(r.left, window.innerWidth-262))+'px';
     pop.style.top=(r.bottom+6)+'px';
-  } else if(!e.target.closest('#helppop')){ pop.style.display='none'; }
+  } else if(!e.target.closest('#helppop')){ pop.style.display='none'; pop._owner=null; }
 });
 function splitHtml(rv){
   if(!rv || !rv.split || !rv.split.length) return '';
