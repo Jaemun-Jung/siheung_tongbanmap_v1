@@ -15,14 +15,6 @@
   "road_jimok": ["도"],
   "road_split_sliver_m2": 5.0,
   "palette": "default",
-  "split_parcel_tong": [
-    {
-      "dong": "거모동",
-      "bonbun": "1859",
-      "split_lat": 37.3638,
-      "south_tong": 31,
-      "north_tong": 32,
-      "desc": "군자서희스타힐스(916세대) — 중앙 도로 기준 남=31통(101~108동)/북=32통(109~115동)"
-    }
-  ]
+  "_note_split": "서희스타힐스 31/32통 도로 자동분할은 제거함(담당자가 수동 그리기로 직접 분할)",
+  "split_parcel_tong": []
 }
