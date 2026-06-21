@@ -170,12 +170,6 @@
         <button class="b" data-pal="vivid">원색</button>
         <button class="b" data-pal="gray">흑백</button>
       </div>
-      <div class="row tight" style="align-items:center;margin-top:6px">
-        <span style="font-size:11px;color:#555">선택 통 색</span>
-        <input type="color" id="tcolor" disabled title="통을 선택하면 색을 바꿀 수 있습니다"
-          style="width:38px;height:28px;padding:1px;border:1px solid #ccc;border-radius:6px"/>
-        <button class="b" id="color-reset" style="margin-left:auto">색 초기화</button>
-      </div>
       <div style="font-size:11px;color:#555;margin-top:7px">선 두께
         <input type="range" id="lw" min="1" max="6" step="0.5" style="width:100%;margin-top:2px"></div>
       <div style="font-size:11px;color:#555;margin-top:4px">채우기 투명도
@@ -260,8 +254,8 @@ let settings = Object.assign({}, DEFAULT_SETTINGS,
   JSON.parse(localStorage.getItem('tongban_style') || '{}'));
 let curCode = null;                                  // 현재 동 코드(통별 색 키)
 function saveSettings(){ localStorage.setItem('tongban_style', JSON.stringify(settings)); }
-function color(t){
-  return settings.tongColors[curCode + ':' + t] || (PALETTES[settings.palette] || PALETTES.default)(t);
+function color(t){                                    // 통 색 = 팔레트(개별 통 색칠 기능 제거)
+  return (PALETTES[settings.palette] || PALETTES.default)(t);
 }
 const approx = f => !!(f.properties && f.properties.근사);
 const road = f => { const m=f.properties&&f.properties.fill_method;
@@ -850,7 +844,6 @@ function afterSel(){
   updateSelPanel();
 }
 function updateSelPanel(){
-  const tc=$('tcolor'); if(tc) tc.disabled=!selActive();
   const bar=$('selbar'); if(!bar) return;
   if(!selActive()){ bar.style.display='none'; return; }
   bar.style.display='block';
@@ -891,15 +884,6 @@ document.querySelectorAll('#palettes button').forEach(b=> b.onclick=()=>{
   document.querySelectorAll('#palettes button').forEach(x=>x.classList.toggle('on',x===b));
   recolor();
 });
-$('tcolor').addEventListener('input', e=>{
-  if(!selActive()) return;
-  selected.forEach(t=> settings.tongColors[curCode+':'+t]=e.target.value);
-  recolor();
-});
-$('color-reset').onclick=()=>{
-  Object.keys(settings.tongColors).forEach(k=>{ if(k.startsWith(curCode+':')) delete settings.tongColors[k]; });
-  recolor();
-};
 $('lw').addEventListener('input', e=>{ settings.lineWeight=+e.target.value; recolor(); });
 $('fa').addEventListener('input', e=>{ settings.fillAlpha=+e.target.value; recolor(); });
 (function initStyleUI(){
