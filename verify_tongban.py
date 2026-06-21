@@ -7,14 +7,12 @@
      → 별표 지번에 엉뚱한 지번이 섞여 들어갔을 가능성.
  (3) 누락 대지(omission): 어느 통에도 안 들어간 '대' 필지가 한 통에 둘러싸인 경우.
      → 그 통에서 빠진 지번일 가능성(예: 군자동 도일로92번길 일대 → 25통).
- (4) 겹친 통(overlap): 도로망(깔끔) 통 폴리곤이 서로 공간적으로 겹치는 경우.
-     → 같은 땅이 두 통에 들어간 셈(별표 관할 재정리 대상).
 
 자동 수정이 아니라 '의심 안내'다(담당자 확인용).
 
 split 등급: 조각필지 ≤10 = 지번오류의심 / 11~60 = 블록분리 / >60 = 과대확장의심.
 
-출력: out/review.json(코드별 split·omission·overlap), out/report_review.csv(통합 표)
+출력: out/review.json(코드별 split·omission), out/report_review.csv(통합 표)
 사용: python verify_tongban.py   (gen_issues.py 실행 뒤에 돌릴 것; 원본 지적도 SHP 필요)
 """
 import argparse, csv, glob, json, os, re
@@ -65,30 +63,6 @@ def grade(n):
     return "과대확장의심"
 
 
-def find_overlaps(code, dong, overlap_min):
-    """도로망(깔끔) 통 폴리곤이 서로 겹치는 쌍을 찾는다(겹친 통)."""
-    rbp = f"{OUT}/{code}/{dong}_tong_roadblock.geojson"
-    if not os.path.exists(rbp):
-        return []
-    rb = gpd.read_file(rbp)
-    if rb.empty:
-        return []
-    rb = rb.to_crs("EPSG:5186")
-    rb["통"] = rb["통"].astype(int)
-    by = rb.dissolve(by="통")["geometry"]
-    tongs = list(by.index)
-    out = []
-    for i in range(len(tongs)):
-        for j in range(i + 1, len(tongs)):
-            gi, gj = by.iloc[i], by.iloc[j]
-            if gi.intersects(gj):
-                a = gi.intersection(gj).area
-                if a >= overlap_min:
-                    out.append({"통": [int(tongs[i]), int(tongs[j])], "면적m2": int(round(a))})
-    out.sort(key=lambda o: -o["면적m2"])
-    return out
-
-
 def find_omissions(dong_names, assigned, shp):
     """미배정 '대' 필지가 한 통에 둘러싸이면 그 통에서 빠진 지번으로 본다(누락 대지).
     dong_names: 이 행정동의 법정동명 집합, assigned: 배정 필지(GDF, 5186, 통 보유), shp: 동 지적도(GDF, 5186)."""
@@ -124,10 +98,9 @@ def find_omissions(dong_names, assigned, shp):
 
 
 def main():
-    ap = argparse.ArgumentParser(description="통반 검증(미표시·분리·누락·겹침)")
+    ap = argparse.ArgumentParser(description="통반 검증(미표시·분리·누락)")
     ap.add_argument("--link", type=float, default=150.0, help="군집 연결 거리(m)")
     ap.add_argument("--gap", type=float, default=300.0, help="본체에서 분리로 볼 거리(m)")
-    ap.add_argument("--overlap-min", type=float, default=200.0, help="겹침으로 볼 최소 면적(㎡)")
     ap.add_argument("--no-shp", action="store_true", help="지적도 없이 실행(누락 점검 생략)")
     args = ap.parse_args()
 
@@ -153,7 +126,7 @@ def main():
 
     review = {}
     rows = []
-    n_missing = n_split = n_overlap = n_omit = 0
+    n_missing = n_split = n_omit = 0
     by_grade = defaultdict(int)
 
     for cfgp in sorted(glob.glob("data/3*/config.json")):
@@ -195,11 +168,6 @@ def main():
                 rows.append([f"분리/{gr}", dong, int(tong), len(sec), int(round(nd)), " / ".join(jib[:15])])
                 by_grade[gr] += 1
                 n_split += 1
-        # (4) 겹친 통 — 도로망 폴리곤 중첩
-        overlaps = find_overlaps(code, dong, args.overlap_min)
-        for o in overlaps:
-            rows.append(["겹침", dong, f"{o['통'][0]}∩{o['통'][1]}", "", o["면적m2"], "도로망 통 폴리곤 중첩"])
-            n_overlap += 1
 
         # (3) 누락 대지 — 미배정 '대'가 한 통에 둘러싸임
         omissions = []
@@ -218,14 +186,12 @@ def main():
             entry["n_split"] = len(splits); entry["split"] = splits
         if omissions:
             entry["n_omit"] = sum(o["필지수"] for o in omissions); entry["omission"] = omissions
-        if overlaps:
-            entry["n_overlap"] = len(overlaps); entry["overlap"] = overlaps
         if len(entry) > 1:
             review[code] = entry
 
     os.makedirs(OUT, exist_ok=True)
     json.dump(review, open(f"{OUT}/review.json", "w", encoding="utf-8"), ensure_ascii=False, indent=2)
-    order = {"미표시": 0, "누락": 1, "겹침": 2}
+    order = {"미표시": 0, "누락": 1}
     rows.sort(key=lambda r: (order.get(r[0], 3), -(r[4] if isinstance(r[4], int) else 0)))
     with open(f"{OUT}/report_review.csv", "w", newline="", encoding="utf-8-sig") as fh:
         w = csv.writer(fh)
@@ -234,7 +200,7 @@ def main():
 
     print(f"미표시 통 {n_missing} · 떨어진 조각 통 {n_split}"
           f"(지번오류의심 {by_grade['지번오류의심']}/블록분리 {by_grade['블록분리']}/과대확장 {by_grade['과대확장의심']})"
-          f" · 누락 대지 {n_omit}필지 · 겹친 통 {n_overlap}쌍")
+          f" · 누락 대지 {n_omit}필지")
     print(f"→ out/review.json, out/report_review.csv")
 
 

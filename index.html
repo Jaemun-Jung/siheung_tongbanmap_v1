@@ -309,12 +309,6 @@ function omissionHtml(rv){
   return `<details class="rev"><summary>🟡 통에서 누락된 듯한 대지 ${rv.n_omit}필지</summary>`+
     `<ul>${li}</ul><div class="hint">어느 통에도 안 들어갔지만 한 통에 둘러싸인 '대지' = 그 통의 별표 지번에서 빠졌을 가능성.</div></details>`;
 }
-function overlapHtml(rv){
-  if(!rv || !rv.n_overlap) return '';
-  const li=(rv.overlap||[]).map(o=>`<li><b>${o.통[0]}통 ∩ ${o.통[1]}통</b> · 약 ${o.면적m2.toLocaleString()}㎡ 겹침</li>`).join('');
-  return `<details class="rev"><summary>🔴 겹친 통 ${rv.n_overlap}쌍</summary>`+
-    `<ul>${li}</ul><div class="hint">같은 땅이 두 통 폴리곤에 함께 들어감(깔끔 모드 기준). 별표 관할 재정리 대상.</div></details>`;
-}
 function showIssues(code){
   const el=$('issues'), v=issuesData[code]; if(!el) return;
   if(!v){ el.style.display='none'; return; }
@@ -326,7 +320,7 @@ function showIssues(code){
        v.missing.map(m=>`<li>${m.통}통 — ${m.사유||m.유형||''}</li>`).join('')+`</ul></details>`;
   }
   const rv=reviewData[code];
-  h+=splitHtml(rv)+omissionHtml(rv)+overlapHtml(rv);
+  h+=splitHtml(rv)+omissionHtml(rv);
   const ex=[];
   if(v.n_conflict) ex.push(`충돌 ${v.n_conflict}건`);
   if(v.n_unassigned) ex.push(`미배정 필지 ${v.n_unassigned}`);
@@ -340,16 +334,14 @@ function showCityIssues(){
   const rvs=Object.values(reviewData);
   const S=rvs.reduce((a,v)=>a+(v.n_split||0),0);
   const OM=rvs.reduce((a,v)=>a+(v.n_omit||0),0);
-  const OV=rvs.reduce((a,v)=>a+(v.n_overlap||0),0);
   el.style.display='block';
   const warn=[];
   if(T-D>0) warn.push(`미표시 ${T-D}통`);
   if(S>0) warn.push(`재검토 의심 ${S}통`);
   if(OM>0) warn.push(`누락 의심 ${OM}필지`);
-  if(OV>0) warn.push(`겹친 통 ${OV}쌍`);
   el.innerHTML=`<span class="big">시흥시 표 ${T}통 중 <b>${D}통</b> 표시</span>`+
     (warn.length?` <span class="warn">· ${warn.join(' · ')}</span>`:'')+
-    `<div style="color:#888;margin-top:2px">동을 선택하면 동별 상세(미표시·재검토·누락·겹침)</div>`;
+    `<div style="color:#888;margin-top:2px">동을 선택하면 동별 상세(미표시·재검토·누락)</div>`;
 }
 
 // 시흥시 공식 통반현황 페이지의 '행정동' 순서(대야동~장곡동). 20개 모두 행정동, 명칭 변경 없음.
