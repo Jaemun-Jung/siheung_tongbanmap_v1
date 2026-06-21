@@ -35,6 +35,9 @@
  #res{margin-top:10px;color:#222;line-height:1.55;border-top:1px solid #eee;padding-top:8px;font-size:15px}
  #res b{font-size:18px;color:var(--blue)}                 /* 통/반 강조 — 클릭·검색 시 잘 보이게 */
  #res .aptrow b{font-size:13.5px;color:#111}              /* 아파트 검색 목록은 줄이 많아 작게 유지 */
+ .review-sec>summary{cursor:pointer;color:#999;font-size:12px;margin-top:7px}  /* 담당자 검토 — 접이식, 평소 은은하게 */
+ .review-sec>summary:hover{color:var(--blue)}
+ .review-sec .review-body{margin-top:4px}
  #status{margin-top:6px;color:#7a5b00;font-size:11px;min-height:14px}
  .legend{margin-top:8px;color:#555;font-size:11px;border-top:1px solid #eee;padding-top:6px}
  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
@@ -372,12 +375,15 @@ function showIssues(code){
        `<details><summary>미표시 통 ${v.n_missing}개 보기</summary><ul>`+
        v.missing.map(m=>`<li>${m.통}통 — ${m.사유||m.유형||''}</li>`).join('')+`</ul></details>`;
   }
+  // 담당자 데이터 점검용(멀리 떨어진 필지·누락 대지·충돌·미배정) → 접이식으로 묶어 일반 화면에선 숨김
   const rv=reviewData[code];
-  h+=splitHtml(rv)+omissionHtml(rv);
+  let qa=splitHtml(rv)+omissionHtml(rv);
   const ex=[];
   if(v.n_conflict) ex.push(`충돌 ${v.n_conflict}건`);
   if(v.n_unassigned) ex.push(`미배정 필지 ${v.n_unassigned}`);
-  if(ex.length) h+=`<div style="margin-top:3px;color:#888">${ex.join(' · ')} <small>(검수용)</small></div>`;
+  if(ex.length) qa+=`<div style="margin-top:3px;color:#888">${ex.join(' · ')}</div>`;
+  if(qa.trim()) h+=`<details class="review-sec"><summary>🔧 담당자 검토 — 데이터 점검용</summary>`+
+                   `<div class="review-body">${qa}</div></details>`;
   el.innerHTML=h;
 }
 function showCityIssues(){
