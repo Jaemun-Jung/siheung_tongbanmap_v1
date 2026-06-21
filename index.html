@@ -113,7 +113,7 @@
 
   <label>② 주소·지번 검색</label>
   <div class="row tight">
-    <input id="q" placeholder="도로명 또는 지번 검색" style="flex:1"/>
+    <input id="q" placeholder="도로명·지번·아파트(예: 동보아파트 104동)" style="flex:1"/>
     <button class="b primebtn" id="go">검색</button>
   </div>
 
@@ -299,6 +299,10 @@ window.fetch = (u, o) => (typeof u === 'string' && u.startsWith('out/'))
 fetch('out/manifest.json').then(r=>r.json()).then(m=>{
   manifest = m; renderDongList(m.dongs); showOverview();
 }).catch(e=> setStatus('manifest 로드 실패 — 웹서버로 열었는지 확인 (file:// 불가)'));
+
+// 아파트 동(棟) → 통/반 검색 인덱스 — 지도에 못 그리는(동·호로 나뉜) 아파트도 이름+동으로 조회
+let aptIndex=null;
+fetch('out/apartment_index.json').then(r=>r.json()).then(d=>{ aptIndex=d.list; }).catch(()=>{});
 
 // 8단계 검증 안내(미표시 통/충돌/미배정)
 let issuesData={}, reviewData={};
@@ -659,8 +663,55 @@ $('t-unassigned').onclick= e=>{ press(e.target,!e.target.classList.contains('on'
 // ---------- 지번 검색 ----------
 function search(){
   const v=$('q').value.trim(); if(!v){ setStatus('검색어를 입력하세요.'); return; }
+  if(searchApartment(v)) return;               // 아파트명(+동) → 통/반 (지도에 없어도 조회)
   if(/[로길]/.test(v)) searchAddress(v);      // 도로명주소 → juso
-  else searchJibun(v);                         // 지번(현재 동)
+  else searchJibun(v);                         // 지번
+}
+// ---------- 아파트 동(棟) 검색 — 이름(+동)으로 통/반 조회 ----------
+const aptNorm = s => (s||'').replace(/\s+/g,'').replace(/아파트/g,'').replace(/Ⓐ/g,'');
+function searchApartment(v){
+  if(!aptIndex) return false;
+  const dm = v.match(/(\d+)\s*동/);            // "104동" 추출
+  const bnum = dm ? parseInt(dm[1]) : null;
+  let nameRaw = v;
+  if(dm) nameRaw = nameRaw.replace(dm[0],' ');
+  nameRaw = nameRaw.replace(/\d+\s*호[\s\d~～\-호]*/g,' ');   // 호 표기 제거
+  const q = aptNorm(nameRaw);
+  if((q.match(/[가-힣A-Za-z]/g)||[]).length < 2) return false; // 이름(한글/영문 2자+) 없으면 아파트 검색 아님
+  let hits = aptIndex.filter(it => it.n.includes(q));
+  if(bnum!=null) hits = hits.filter(it => it.동===bnum);
+  if(!hits.length) return false;
+  renderAptResults(v, hits, bnum);
+  return true;
+}
+function renderAptResults(query, hits, bnum){
+  // 정렬: 동명→통→반→동번호
+  hits = hits.slice().sort((a,b)=> a.dong.localeCompare(b.dong) || a.통-b.통 || a.반-b.반 || a.동-b.동);
+  const many = hits.length > 30;
+  const shown = hits.slice(0, 30);
+  const rows = shown.map(it=>{
+    const ho = it.호 ? ` <small style="color:#888">(${it.호})</small>` : '';
+    return `<div class="aptrow" data-code="${it.code}" data-dong="${it.dong}" data-t="${it.통}"
+      style="padding:4px 2px;border-bottom:1px solid #eee;cursor:pointer">
+      <b>${it.apt} ${it.동}동</b> → ${it.dong} <b>${it.통}통 ${it.반}반</b>${ho}</div>`;
+  }).join('');
+  $('res').innerHTML = `<b>🏢 "${query}"</b> 아파트 검색 — ${hits.length}건${many?' (상위 30 표시)':''}
+    <div style="margin-top:4px;max-height:240px;overflow:auto">${rows}</div>
+    <small style="color:#888">행을 클릭하면 해당 동으로 이동합니다(지도에 통이 없으면 안내만).</small>`;
+  $('res').querySelectorAll('.aptrow').forEach(el=> el.onclick=()=>
+    aptGo(el.dataset.code, el.dataset.dong, +el.dataset.t, el.querySelector('b').textContent));
+  setStatus(`아파트 검색 ${hits.length}건`);
+}
+function aptGo(code, dong, t, label){
+  setStatus(`${dong} 불러오는 중…`);
+  loadDong(code, dong, ()=>{
+    selectSingle(t);
+    let lyr=null; if(cur.parcels) cur.parcels.eachLayer(l=>{ if(+l.feature.properties.통===t && !lyr) lyr=l; });
+    if(lyr) map.fitBounds(lyr.getBounds().pad(.4),{maxZoom:18});
+    $('res').innerHTML = `<b>${label}</b> → <b>${dong} ${t}통</b>` +
+      (lyr ? ' <small>(지도 표시됨)</small>' : ' <small style="color:#c0392b">(지도에 미표시 — 동·호 분할 통, 안내만)</small>');
+    setStatus('');
+  });
 }
 // 지번 검색(시 전체) — "법정동 지번"(예: 거모동 1859) 또는 지번만. 별표 인덱스로 통 조회→이동
 // 본번만 입력(예 89)했는데 부번만 있으면(89-1) 같은 본번 첫 필지로 보정.
