@@ -683,8 +683,9 @@ function aptSim(q, n){
 }
 function searchApartment(v){
   if(!aptIndex) return false;
-  const dm = v.match(/(\d+)\s*동/);            // "104동" 추출
-  const bnum = dm ? parseInt(dm[1]) : null;
+  // 동 표기: 숫자(104동) · 한글(가동·나동) · 알파벳(A동)
+  const dm = v.match(/(\d+|[가나다라마바사아자차카타파하]|[A-Za-z])\s*동/);
+  const bdong = dm ? dm[1] : null;
   let nameRaw = v;
   if(dm) nameRaw = nameRaw.replace(dm[0],' ');
   nameRaw = nameRaw.replace(/\d+\s*호[\s\d~～\-호]*/g,' ');   // 호 표기 제거
@@ -695,10 +696,12 @@ function searchApartment(v){
   aptIndex.forEach(it => { if(!(it.n in score)) score[it.n] = aptSim(q, it.n.toLowerCase()); });
   let hits = aptIndex.filter(it => score[it.n] >= TH);
   if(!hits.length) return false;
-  if(bnum!=null){ const f = hits.filter(it => it.동===bnum); if(f.length) hits = f; }  // 동 있으면 우선, 없으면 단지 전체
-  // 유사도 높은 순 → 동명 → 통 → 반 → 동번호
-  hits.sort((a,b)=> score[b.n]-score[a.n] || a.dong.localeCompare(b.dong) || a.통-b.통 || a.반-b.반 || a.동-b.동);
-  renderAptResults(v, hits, bnum);
+  if(bdong!=null){ const bd=String(bdong).toLowerCase();
+    const f = hits.filter(it => String(it.동).toLowerCase()===bd); if(f.length) hits = f; }  // 동 있으면 우선
+  // 유사도 높은 순 → 동명 → 통 → 반 → 동
+  hits.sort((a,b)=> score[b.n]-score[a.n] || a.dong.localeCompare(b.dong) || a.통-b.통 || a.반-b.반
+                 || String(a.동).localeCompare(String(b.동),'ko',{numeric:true}));
+  renderAptResults(v, hits, bdong);
   return true;
 }
 function renderAptResults(query, hits, bnum){

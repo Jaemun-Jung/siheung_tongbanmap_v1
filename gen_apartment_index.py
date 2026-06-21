@@ -12,8 +12,11 @@
 """
 import csv, glob, json, os, re
 
-DONG_TOK = re.compile(r'(\d+)\s*동')                       # "101동"
+DONG_TOK = re.compile(r'(\d+)\s*동')                       # 숫자 동 "101동"
 DONG_RANGE = re.compile(r'(\d+)\s*동?\s*[~～\-]\s*(\d+)\s*동')  # "101~103동", "101동~103동"
+# 한글 동(가·나·다…) — 건물 동 글자만, 토큰 경계로(법정동 '미산동'의 '산동' 오인 방지)
+DONG_KOR = re.compile(r'(?:^|[\s(（])([가나다라마바사아자차카타파하])동')
+DONG_ALPHA = re.compile(r'(?:^|[\s(（])([A-Za-z])동')         # 알파벳 동 "A동"
 JIBUN = re.compile(r'산?\d[\d\-]*')                          # 지번
 JIBUN_ISH = re.compile(r'산?\d[\d\-～~ㆍ·,]*(?:외)?|\d+필지|외')  # 지번·"869-1～7"·"289-9ㆍ56"·"…외"·"N필지"(이름 추출 멈춤)
 # 동 뒤 호범위/메모(전체 등) 추출 — 동번호 다음부터 콤마/다음 동/끝까지
@@ -60,25 +63,28 @@ def main():
             continue
         for r in csv.DictReader(open(csvp, encoding="utf-8-sig")):
             txt = str(r.get("관할구역", "")).strip()
-            m = DONG_TOK.search(txt)
-            if not m:
+            firsts = [mm.start() for rx in (DONG_TOK, DONG_KOR, DONG_ALPHA)
+                      for mm in [rx.search(txt)] if mm]   # 첫 동(숫자/한글/알파벳) 위치 = 이름 경계
+            if not firsts:
                 continue
             try:
                 tong = int(r["통"]); ban = int(float(r["반"])) if r.get("반") not in (None, "") else 0
             except (ValueError, KeyError):
                 continue
-            name = apt_name(txt[:m.start()], beops)
+            name = apt_name(txt[:min(firsts)], beops)
             if not name:                                   # 아파트명 못 뽑으면 스킵
                 continue
-            # 이 행의 동번호들(범위 포함)
+            # 이 행의 동(숫자 범위/단일 + 한글 + 알파벳) — 전부 문자열로
             dongs = set()
             for a, b in DONG_RANGE.findall(txt):
                 a, b = int(a), int(b)
                 if 0 < b - a < 40:
-                    dongs.update(range(a, b + 1))
-            dongs.update(int(d) for d in DONG_TOK.findall(txt))
-            # 동별 호범위/메모
-            ho = {int(d): (h or "").strip(" ·~-") for d, h in HO_AFTER.findall(txt)}
+                    dongs.update(str(x) for x in range(a, b + 1))
+            dongs.update(DONG_TOK.findall(txt))
+            dongs.update(DONG_KOR.findall(txt))
+            dongs.update(DONG_ALPHA.findall(txt))
+            # 호범위/메모는 숫자 동만(한글·알파벳 동은 호 표기 거의 없음)
+            ho = {d: (h or "").strip(" ·~-") for d, h in HO_AFTER.findall(txt)}
             for d in sorted(dongs):
                 items.append({"apt": name, "n": norm(name), "동": d,
                               "code": code, "dong": dong, "통": tong, "반": ban,
