@@ -278,7 +278,7 @@ const tongStyle = f => { const mn=manualF(f); const on=selected.has(f.properties
     dashArray:(mn||approx(f))?'5 4':null, fill:false, opacity: dim?0.35:0.95 }; };
 
 // ---------- 상태 ----------
-let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,labels:null,unassigned:null}, curParcels=null;
+let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,admincase:null,labels:null,unassigned:null}, curParcels=null;
 let curUnassignedData=null;
 let ov={mask:null,tong:null,admin:null,city:null,labels:null};
 let allAdminCache=null;   // out/overview/all_admin.geojson 캐시(이웃 동 클릭용)
@@ -444,7 +444,9 @@ function loadDong(code, dong, afterLoad){
     fetch(`${base}_unassigned.geojson`).then(r=>r.ok?r.json():null).catch(()=>null),
   ]).then(([parcels,tong,admin,unassigned])=>{
     curParcelsData=parcels; curTongData=tong; curUnassignedData=unassigned;
-    cur.admin = L.geoJSON(admin,{style:{color:'#111',weight:4,fill:false,opacity:.85}}).addTo(map);
+    // 행정동 경계 = 흰색 외곽(halo) 위에 굵은 검정 실선 → 통 경계(가는 회색)와 확실히 구분.
+    cur.admincase = L.geoJSON(admin,{style:{color:'#fff',weight:8,fill:false,opacity:.95,lineJoin:'round',lineCap:'round'}}).addTo(map);
+    cur.admin = L.geoJSON(admin,{style:{color:'#000',weight:4,fill:false,opacity:1,lineJoin:'round',lineCap:'round'}}).addTo(map);
     // 뷰를 먼저 해당 동으로 맞춘 뒤 필지를 그린다(animate:false).
     // 그러지 않으면 수천 개 필지가 낮은 줌에서 어두운 덩어리로 렌더된 뒤 줌인에 확대돼
     // "커다란 검은 네모"처럼 깜빡인다.
@@ -493,6 +495,9 @@ function renderBoundary(){
   cur.tong = L.geoJSON(curLineData,{style:tongStyle}).addTo(map);
   buildLabels(curLineData.features);
   cur.labels.addTo(map);
+  // 행정동 경계(+halo)를 통 경계·채움 위로 올려 또렷하게 — 라벨은 별도 pane이라 위 유지
+  if(cur.admincase) cur.admincase.bringToFront();
+  if(cur.admin) cur.admin.bringToFront();
   applyToggles();
 }
 
@@ -611,6 +616,7 @@ function applyToggles(){
   if(cur.parcels){ cur.parcels.setStyle(pStyle); }
   toggleLayer($('t-label').classList.contains('on'), cur.labels);
   toggleLayer($('t-admin').classList.contains('on'), cur.admin);
+  toggleLayer($('t-admin').classList.contains('on'), cur.admincase);
 }
 function toggleLayer(on, layer){ if(!layer) return; if(on){ if(!map.hasLayer(layer)) layer.addTo(map);} else { if(map.hasLayer(layer)) map.removeLayer(layer);} }
 function press(btn,on){ btn.classList.toggle('on',on); }
