@@ -71,7 +71,7 @@
     "n_missing": 0,
     "missing": [],
     "n_conflict": 20,
-    "n_unassigned": 2330
+    "n_unassigned": 2299
   },
   "31150530": {
     "dong": "신현동",
@@ -176,7 +176,7 @@
       }
     ],
     "n_conflict": 17,
-    "n_unassigned": 2147
+    "n_unassigned": 2130
   },
   "31150550": {
     "dong": "매화동",

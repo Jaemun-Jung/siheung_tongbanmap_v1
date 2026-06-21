@@ -171,6 +171,7 @@ def expand_table(csv_path, valid_beop):
         # (아파트와 같은 행의 정상 지번을 아파트로 오인하지 않도록).
         raw = re.sub(r'\([^)]*\)', ' Ⓐ ', raw)
         cur = None
+        cur_bon = None                                          # 직전 본번(부번 연속 해석용): '764-3, 9~12, 16' → 764-9~12, 764-16
         for seg in raw.split(','):                              # 콤마/법정동 단위 세그먼트
             seg = seg.strip()
             if not seg:
@@ -178,7 +179,7 @@ def expand_table(csv_path, valid_beop):
             had_apt = bool(APT_WORD.search(seg))               # 세그먼트 단위 아파트 여부
             m = BEOP_RE.match(seg)
             if m and m.group(1) in valid_beop:                  # 알려진 법정동만 전환
-                cur = m.group(1); body = m.group(2).strip()
+                cur = m.group(1); body = m.group(2).strip(); cur_bon = None
             else:
                 body = seg
             if cur is None:
@@ -193,6 +194,7 @@ def expand_table(csv_path, valid_beop):
                 # '본번'이라는 신호 → 다른 본번이면 본번 범위(부번은 본번폴백이 채움), 같은 본번이면
                 # 부번 범위로 전개. (왼쪽만 산인 범위 '산68~74'는 기존 경로가 이미 정상 처리.)
                 if '~산' in word:
+                    cur_bon = None                              # 산은 별도 네임스페이스 → 부번 연속 끊음
                     try:
                         a, b = word.replace('산', '').strip('-~ㆍ').split('~', 1)
                         abon, bbon = int(a.split('-')[0]), int(b.split('-')[0])
@@ -225,6 +227,17 @@ def expand_table(csv_path, valid_beop):
                 for j in res:
                     recs.append((tong, ban, cur, j, had_apt))
                 got = True
+                # 부번 연속 해석: 직전 본번-부번('764-3') 뒤의 bare 숫자('9~12','16')는 그 본번의
+                # 부번일 수 있음 → cur_bon-X도 함께 생성(지적도에 실재하는 쪽만 매칭됨). 본번 해석은
+                # 그대로 두므로(대야동 '496-1~12, 491'의 491=본번) 회귀 없음.
+                if san:
+                    cur_bon = None
+                elif '-' in core:                               # 본번-부번 → 본번 기억
+                    try: cur_bon = int(core.split('-')[0])
+                    except ValueError: cur_bon = None
+                elif cur_bon is not None:                       # bare 숫자 → 직전 본번의 부번 해석 추가
+                    for x in res:
+                        recs.append((tong, ban, cur, f"{cur_bon}-{x}", had_apt))
             if not got and body:                               # 지번 없는 아파트명 행
                 apt_rows.append((tong, ban, cur, body, r['관할구역']))
     return recs, apt_rows, failed
