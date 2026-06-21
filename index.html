@@ -354,12 +354,19 @@ function showCityIssues(){
     `<div style="color:#888;margin-top:2px">동을 선택하면 동별 상세(미표시·재검토·누락·겹침)</div>`;
 }
 
+// 시흥시 공식 통반현황 페이지 순서(대야동~장곡동). 데이터 일부 동명이 개편 전 이름이라
+// 그 자리에 현재 데이터명을 넣음: 계수동→신천동, 무지내동→능곡동, 화정동→연성동.
+const DONG_ORDER=['대야동','신천동','신현동','은행동','매화동','목감동','군자동','월곶동',
+  '정왕본동','정왕1동','정왕2동','정왕3동','정왕4동','거북섬동','배곧1동','배곧2동',
+  '과림동','능곡동','연성동','장곡동'];
+const dongRank = name => { const i=DONG_ORDER.indexOf(name); return i<0 ? 999 : i; };
 function renderDongList(dongs){
   const sel = $('dong-select'); sel.innerHTML='';
   const ph=document.createElement('option');                 // 드롭다운 안내(선택 전 표시)
   ph.value=''; ph.textContent='행정동을 선택하세요 ▾'; sel.appendChild(ph);
-  dongs.forEach(d=>{ const o=document.createElement('option');
-    o.value=d.code; o.textContent=`${d.dong} (${d.n_tong}통)`; o.dataset.dong=d.dong; sel.appendChild(o); });
+  [...dongs].sort((a,b)=> dongRank(a.dong)-dongRank(b.dong) || a.dong.localeCompare(b.dong))
+    .forEach(d=>{ const o=document.createElement('option');
+      o.value=d.code; o.textContent=`${d.dong} (${d.n_tong}통)`; o.dataset.dong=d.dong; sel.appendChild(o); });
   sel.onchange = ()=>{ const o=sel.selectedOptions[0]; if(o && o.dataset.dong) loadDong(o.value, o.dataset.dong); };
 }
 $('dong-search').addEventListener('input', e=>{
