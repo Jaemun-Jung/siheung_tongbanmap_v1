@@ -469,9 +469,11 @@ function renderBoundary(){
     const carved = carveBase(curTongData.features, mfeats);
     fillFeats = carved.concat(mfeats); lineFeats = fillFeats;
   } else {
-    // 별표·필지(법적) 뷰: 법정 필지는 깎지 않고 검토중 통만 위에 표시
+    // 별표·필지(법적) 뷰: 채움(법정 필지)은 깎지 않는다. 단, 통 외곽선·라벨은
+    // 수동 split을 반영해 깎는다 — 안 그러면 나눈 통(예: 23→23·24)의 원래 '23'
+    // 라벨이 새로 그린 통 한가운데 그대로 남는다.
     fillFeats = (curParcelsData.features||[]).concat(mfeats);
-    lineFeats = (curTongData.features||[]).concat(mfeats);
+    lineFeats = carveBase(curTongData.features, mfeats).concat(mfeats);
   }
   const fillData = {type:'FeatureCollection', features:fillFeats};
   curLineData = {type:'FeatureCollection', features:lineFeats};
@@ -818,7 +820,12 @@ function carveBase(baseFeats, mfeats){
         if(!turf.booleanIntersects(f, mf)) return f;                     // 안 겹치면 그대로
         const d = turf.difference(f, mf);
         if(!d) return null;                                              // 완전히 덮이면 제거
-        d.properties = f.properties; return d;
+        d.properties = Object.assign({}, f.properties);                  // 원본 속성 보존(복제)
+        // 라벨 좌표를 '깎이고 남은' 영역 안의 점으로 재계산 — 원래 통 중심이
+        // 그린 통 안에 남아 글자가 안 사라지는 문제 방지(pointOnFeature는 폴리곤 내부 보장)
+        try{ const pt=turf.pointOnFeature(d).geometry.coordinates;
+             d.properties.lon=pt[0]; d.properties.lat=pt[1]; }catch(e){}
+        return d;
       }catch(e){ return f; }
     }).filter(Boolean);
   });
