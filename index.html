@@ -817,7 +817,7 @@ function navToHit(hit, dongName, jibun, label){
       if(!exact && String(p.지번)===jibun && p.법정동===dongName) exact=l; });
     const tgt=exact||lyr;
     if(tgt){ map.fitBounds(tgt.getBounds().pad(.4),{maxZoom:18});
-      dropSearchMarker(tgt.getBounds().getCenter(), `<b>${dongName} ${jibun}</b><br>${dong} ${t}통${b?' '+b+'반':''}`); }
+      dropSearchMarker(tgt.getBounds().getCenter(), `<b>${label||(dongName+' '+jibun)}</b><br>${dong} ${t}통${b?' '+b+'반':''}`); }
     $('res').innerHTML=`<b>${label||(dongName+' '+jibun)}</b> → <b>${dong} ${t}통${b?' '+b+'반':''}</b> <small>(별표 지번)</small>`;
     setStatus('');
   });
@@ -841,14 +841,7 @@ function searchAddress(kw){
     ensureIndex().then(idx=>{
       const hit=idx[key];
       if(!hit){ $('res').innerHTML=`<b>${j.roadAddr}</b><br>${m[1]} ${m[2]} <small>— 별표에 없는 지번(통 미상)</small>`; setStatus(''); return; }
-      const [code,dong,t,b]=hit;
-      loadDong(code,dong,()=>{
-        selectSingle(t);
-        let lyr=null; cur.parcels.eachLayer(l=>{ if(!lyr && l.feature.properties.통===t) lyr=l; });
-        if(lyr) map.fitBounds(lyr.getBounds().pad(.4),{maxZoom:17});
-        $('res').innerHTML=`<b>${j.roadAddr}</b><br>${m[1]} ${m[2]} → <b>${dong} ${t}통${b?' '+b+'반':''}</b>`;
-        setStatus('');
-      });
+      navToHit(hit, m[1], m[2], j.roadAddr);   // 정확 필지로 줌 + 핀 표시(지번 검색과 동일)
     });
   }).catch(e=> setStatus('주소 검색 실패: '+e));
 }
