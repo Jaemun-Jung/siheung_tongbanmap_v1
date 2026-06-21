@@ -62,7 +62,7 @@
       }
     ],
     "n_conflict": 12,
-    "n_unassigned": 3723
+    "n_unassigned": 3579
   },
   "31150520": {
     "dong": "신천동",
@@ -235,7 +235,7 @@
     "n_missing": 0,
     "missing": [],
     "n_conflict": 71,
-    "n_unassigned": 3009
+    "n_unassigned": 2836
   },
   "31150611": {
     "dong": "정왕2동",
@@ -465,7 +465,7 @@
       }
     ],
     "n_conflict": 0,
-    "n_unassigned": 3484
+    "n_unassigned": 3465
   },
   "31150680": {
     "dong": "군자동",

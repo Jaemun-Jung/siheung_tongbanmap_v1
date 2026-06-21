@@ -183,7 +183,36 @@ def expand_table(csv_path, valid_beop):
             got = False
             for word in body.split():                          # 지번은 공백으로도 구분됨
                 word = word.split('(')[0].strip(',.')          # 미닫힌 괄호 잔여 제거
-                if not word or not SPEC_FULL.match(word):       # 아파트명 등 비지번 단어 → 스킵
+                if not word:
+                    continue
+                # 오른쪽 끝점에 산이 붙은 범위('산74-1~산87', '산100-4~산104', '13-1~산13-7' 등):
+                # SPEC_FULL이 산 2회를 못 받아 통째 드롭되던 버그를 수정. 오른쪽 산은 그 끝점이
+                # '본번'이라는 신호 → 다른 본번이면 본번 범위(부번은 본번폴백이 채움), 같은 본번이면
+                # 부번 범위로 전개. (왼쪽만 산인 범위 '산68~74'는 기존 경로가 이미 정상 처리.)
+                if '~산' in word:
+                    try:
+                        a, b = word.replace('산', '').strip('-~ㆍ').split('~', 1)
+                        abon, bbon = int(a.split('-')[0]), int(b.split('-')[0])
+                        if abon == bbon:                        # 같은 본번 → 부번 범위
+                            asub = int(a.split('-')[1]) if '-' in a else 0
+                            bsub = int(b.split('-')[1]) if '-' in b else 0
+                            res = ['산'+str(abon)+(f'-{n}' if n else '') for n in range(asub, bsub+1)]
+                        elif 0 < bbon - abon < 2000:            # 다른 본번 → 본번 범위 + 끝점 부번
+                            res = ['산'+str(n) for n in range(abon, bbon+1)]
+                            if '-' in a: res.append('산'+a)
+                            if '-' in b: res.append('산'+b)
+                        else:
+                            res = []
+                    except (ValueError, IndexError):
+                        res = []
+                    if res:
+                        for j in res:
+                            recs.append((tong, ban, cur, j, had_apt))
+                        got = True
+                    else:
+                        failed.append((tong, ban, cur, word))
+                    continue
+                if not SPEC_FULL.match(word):                   # 아파트명 등 비지번 단어 → 스킵
                     continue
                 san = word.startswith('산')
                 core = (word[1:] if san else word).strip('-~ㆍ')
