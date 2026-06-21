@@ -6,10 +6,12 @@
 입력: data/{code}/관할구역.csv, out/{code}/{동}_tong.geojson, report_*.csv
 사용: python gen_issues.py
 """
-import csv, glob, json, os
+import csv, glob, json, os, re
 import geopandas as gpd
 
 OUT = "out"
+# 별표 관할구역에 아파트 동(棟)/호 표기가 있으면 '같은 지번을 동별로 분할'한 통(아파트)
+APT_BUILDING = re.compile(r"아파트|빌라|연립|단지|타운|마을|Ⓐ|\d+동|\d+호|\(")
 
 def nrows(path):
     if not os.path.exists(path):
@@ -27,8 +29,11 @@ def main():
         if not (os.path.exists(csvp) and os.path.exists(tongp)):
             continue
         table = set()
+        apt_tongs = set()                       # 별표에 아파트 동/호 표기가 있는 통
         for r in csv.DictReader(open(csvp, encoding="utf-8-sig")):
-            table.add(int(r["통"]))
+            t = int(r["통"]); table.add(t)
+            if APT_BUILDING.search(str(r.get("관할구역", ""))):
+                apt_tongs.add(t)
         drawn = set(int(t) for t in gpd.read_file(tongp)["통"].unique())
         # 미표시 통 + 사유
         reasons = {}
@@ -36,8 +41,14 @@ def main():
         if os.path.exists(mr):
             for r in csv.DictReader(open(mr, encoding="utf-8-sig")):
                 reasons[int(r["통"])] = {"유형": r.get("유형", ""), "사유": r.get("사유", "")}
-        missing = [{"통": t, **reasons.get(t, {"유형": "", "사유": "사유 미상"})}
-                   for t in sorted(table - drawn)]
+        missing = []
+        for t in sorted(table - drawn):
+            info = dict(reasons.get(t, {"유형": "", "사유": "사유 미상"}))
+            # 같은 지번을 아파트 동별로 나눈 통(지적도엔 같은 지번 1개라 흡수됨) → 수동 그리기 안내
+            if t in apt_tongs and ("충돌" in info.get("사유", "") or "흡수" in info.get("사유", "")):
+                info["유형"] = "아파트"
+                info["사유"] = "같은 지번을 아파트 동(棟)별로 분할 — 수동 그리기 필요"
+            missing.append({"통": t, **info})
         issues[code] = {
             "dong": dong,
             "n_table": len(table),
