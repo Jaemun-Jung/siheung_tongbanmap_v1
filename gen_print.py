@@ -25,18 +25,19 @@ for cand in ["Malgun Gothic", "맑은 고딕", "NanumGothic", "AppleGothic"]:
 rcParams["axes.unicode_minus"] = False
 
 PAPER = {"A4": (297, 210), "A3": (420, 297)}   # mm, 가로 기준
+NCOL = 12                                            # 색 슬롯 수(인접 통은 다른 슬롯, assign_tong_colors.py)
 PALETTES = {
-    "default": lambda t: colorsys.hls_to_rgb(((t*47) % 360)/360, 0.55, 0.65),
-    "pastel":  lambda t: colorsys.hls_to_rgb(((t*47) % 360)/360, 0.78, 0.48),
-    "vivid":   lambda t: colorsys.hls_to_rgb(((t*47) % 360)/360, 0.48, 0.85),
-    "gray":    lambda t: colorsys.hls_to_rgb(0, (35 + (t*53) % 50)/100, 0),
+    "default": lambda s: colorsys.hls_to_rgb(((s*360/NCOL) % 360)/360, 0.55, 0.65),
+    "pastel":  lambda s: colorsys.hls_to_rgb(((s*360/NCOL) % 360)/360, 0.78, 0.48),
+    "vivid":   lambda s: colorsys.hls_to_rgb(((s*360/NCOL) % 360)/360, 0.48, 0.85),
+    "gray":    lambda s: colorsys.hls_to_rgb(0, (35 + (s*53) % 50)/100, 0),
 }
 
-def tong_color(t, palette, overrides, code):
+def tong_color(slot, palette, overrides, code, t):
     o = overrides.get(f"{code}:{t}")
     if o:
         return o
-    return PALETTES.get(palette, PALETTES["default"])(int(t))
+    return PALETTES.get(palette, PALETTES["default"])(int(slot))
 
 def find_dong(code):
     for cfgp in glob.glob("data/3*/config.json"):
@@ -68,7 +69,8 @@ def render(code, dong, palette, paper, orient, boundary, select, dpi, date, over
     sel = set(int(s) for s in select) if select else set()
     for _, r in tong.iterrows():
         t = int(r["통"]); on = (not sel) or (t in sel); dim = bool(sel) and (t not in sel)
-        gpd.GeoSeries([r.geometry]).plot(ax=ax, facecolor=tong_color(t, palette, overrides, code),
+        slot = int(r["cidx"]) if "cidx" in tong.columns and r["cidx"] is not None else t
+        gpd.GeoSeries([r.geometry]).plot(ax=ax, facecolor=tong_color(slot, palette, overrides, code, t),
             edgecolor="#333", linewidth=(line_w+1.2) if (sel and t in sel) else line_w,
             alpha=0.25 if dim else fill_a)
     admin.boundary.plot(ax=ax, color="black", linewidth=2.2)

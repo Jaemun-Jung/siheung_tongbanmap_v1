@@ -243,19 +243,22 @@ document.querySelectorAll('#bases button').forEach(btn=>{
 });
 
 // ---------- 색상/스타일 설정 (localStorage, 5단계) ----------
+const NCOL = 12;                                     // 색 슬롯 수(인접 통은 서로 다른 슬롯)
 const PALETTES = {
-  default: t => `hsl(${(t*47)%360},65%,55%)`,
-  pastel:  t => `hsl(${(t*47)%360},48%,78%)`,
-  vivid:   t => `hsl(${(t*47)%360},85%,48%)`,
-  gray:    t => `hsl(0,0%,${35+((t*53)%50)}%)`,    // 인쇄용 흑백(명도 변주)
+  default: s => `hsl(${(s*360/NCOL)%360},65%,55%)`,
+  pastel:  s => `hsl(${(s*360/NCOL)%360},48%,78%)`,
+  vivid:   s => `hsl(${(s*360/NCOL)%360},85%,48%)`,
+  gray:    s => `hsl(0,0%,${35+((s*53)%50)}%)`,      // 인쇄용 흑백(명도 변주)
 };
 const DEFAULT_SETTINGS = { palette:'default', tongColors:{}, lineWeight:3, fillAlpha:0.45 };
 let settings = Object.assign({}, DEFAULT_SETTINGS,
   JSON.parse(localStorage.getItem('tongban_style') || '{}'));
 let curCode = null;                                  // 현재 동 코드(통별 색 키)
 function saveSettings(){ localStorage.setItem('tongban_style', JSON.stringify(settings)); }
-function color(t){                                    // 통 색 = 팔레트(개별 통 색칠 기능 제거)
-  return (PALETTES[settings.palette] || PALETTES.default)(t);
+let tongCidx = {};                                   // {통: 색슬롯} — 인접 통과 다른 색(cidx, 없으면 통번호)
+function color(t){                                    // 통 색 = 색 슬롯 기반(맞닿은 통은 다른 색)
+  const s = (tongCidx[t] != null) ? tongCidx[t] : t;
+  return (PALETTES[settings.palette] || PALETTES.default)(s);
 }
 const approx = f => !!(f.properties && f.properties.근사);
 const road = f => { const m=f.properties&&f.properties.fill_method;
@@ -467,6 +470,7 @@ function loadDong(code, dong, afterLoad){
     fetch(`${base}_unassigned.geojson`).then(r=>r.ok?r.json():null).catch(()=>null),
   ]).then(([parcels,tong,admin,unassigned])=>{
     curParcelsData=parcels; curTongData=tong; curUnassignedData=unassigned;
+    tongCidx={}; (tong.features||[]).forEach(f=>{ if(f.properties.cidx!=null) tongCidx[+f.properties.통]=f.properties.cidx; });
     // 행정동 경계 = 흰색 외곽(halo) 위에 굵은 검정 실선 → 통 경계(가는 회색)와 확실히 구분.
     cur.admincase = L.geoJSON(admin,{style:{color:'#fff',weight:8,fill:false,opacity:.95,lineJoin:'round',lineCap:'round'}}).addTo(map);
     cur.admin = L.geoJSON(admin,{style:{color:'#000',weight:4,fill:false,opacity:1,lineJoin:'round',lineCap:'round'}}).addTo(map);
