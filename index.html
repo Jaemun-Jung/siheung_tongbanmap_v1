@@ -311,6 +311,11 @@ fetch('out/manifest.json').then(r=>r.json()).then(m=>{
 let aptIndex=null;
 fetch('out/apartment_index.json').then(r=>r.json()).then(d=>{ aptIndex=d.list; }).catch(()=>{});
 
+// 관리자 모드 — 주소에 ?admin=1 일 때만 '담당자 검토'(전체현황·멀리떨어진필지·누락 등) 노출.
+// 평소(일반 주소)엔 완전히 숨김. 담당자만 ?admin=1 주소를 북마크해 사용.
+const adminMode = new URLSearchParams(location.search).get('admin')==='1';
+if(adminMode){ const _s=document.querySelector('.sub');
+  if(_s) _s.innerHTML += ' <span style="color:#c0392b;font-weight:700">· 🔧 관리자 모드</span>'; }
 // 8단계 검증 안내(미표시 통/충돌/미배정)
 let issuesData={}, reviewData={};
 fetch('out/issues.json').then(r=>r.json())
@@ -385,12 +390,13 @@ function showIssues(code){
   if(v.n_conflict) ex.push(`충돌 ${v.n_conflict}건`);
   if(v.n_unassigned) ex.push(`미배정 필지 ${v.n_unassigned}`);
   if(ex.length) qa+=`<div style="margin-top:3px;color:#888">${ex.join(' · ')}</div>`;
-  if(qa.trim()) h+=`<details class="review-sec"><summary>🔧 담당자 검토 — 데이터 점검용</summary>`+
+  if(adminMode && qa.trim()) h+=`<details class="review-sec"><summary>🔧 담당자 검토 — 데이터 점검용</summary>`+
                    `<div class="review-body">${qa}</div></details>`;
   el.innerHTML=h;
 }
 function showCityIssues(){
   const el=$('issues'); if(!el) return;
+  if(!adminMode){ el.style.display='none'; return; }   // 첫 화면 전체현황은 관리자 모드(?admin=1)에서만
   const vals=Object.values(issuesData); if(!vals.length){ el.style.display='none'; return; }
   const T=vals.reduce((a,v)=>a+v.n_table,0), D=vals.reduce((a,v)=>a+v.n_drawn,0);
   const rvs=Object.values(reviewData);
