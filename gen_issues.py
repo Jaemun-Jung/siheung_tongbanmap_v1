@@ -44,10 +44,13 @@ def main():
         missing = []
         for t in sorted(table - drawn):
             info = dict(reasons.get(t, {"유형": "", "사유": "사유 미상"}))
-            # 같은 지번을 아파트 동별로 나눈 통(지적도엔 같은 지번 1개라 흡수됨) → 수동 그리기 안내
-            if t in apt_tongs and ("충돌" in info.get("사유", "") or "흡수" in info.get("사유", "")):
+            # 별표에 아파트 동/호 표기가 있는 통은 지적도로 분리 불가 → 수동 그리기 안내
+            if t in apt_tongs:
+                s = info.get("사유", "")
                 info["유형"] = "아파트"
-                info["사유"] = "같은 지번을 아파트 동(棟)별로 분할 — 수동 그리기 필요"
+                info["사유"] = ("같은 지번을 아파트 동(棟)별로 분할 — 수동 그리기 필요"
+                                if ("충돌" in s or "흡수" in s)
+                                else "별표에 지번 없이 아파트 단지·동만 표기 — 수동 그리기 필요")
             missing.append({"통": t, **info})
         issues[code] = {
             "dong": dong,
