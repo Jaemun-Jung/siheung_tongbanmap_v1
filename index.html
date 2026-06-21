@@ -121,8 +121,8 @@
     <div class="secbody">
       <label>경계 방식</label>
       <div class="row tight" id="bmode">
-        <button class="b on" id="bm-clean">깔끔(도로망)</button>
-        <button class="b" id="bm-parcel">별표(필지)</button>
+        <button class="b" id="bm-clean">깔끔(도로망)</button>
+        <button class="b on" id="bm-parcel">별표(필지)</button>
       </div>
       <div class="hint">깔끔=도로 중심선 경계 · 별표=시행규칙 지번 그대로(법적)</div>
 
@@ -269,7 +269,7 @@ let ov={mask:null,tong:null,admin:null,city:null,labels:null};
 let allAdminCache=null;   // out/overview/all_admin.geojson 캐시(이웃 동 클릭용)
 let curTongData=null;     // 필지기반 통 GeoJSON
 let curParcelsData=null, curRoadblockData=null, curLineData=null;
-let boundaryMode='clean'; // 'clean'(도로망 깔끔) | 'parcel'(별표·필지)
+let boundaryMode='parcel'; // 'parcel'(별표·필지, 기본) | 'clean'(도로망 깔끔)
 const $ = id => document.getElementById(id);
 const setStatus = s => $('status').textContent = s||'';
 
