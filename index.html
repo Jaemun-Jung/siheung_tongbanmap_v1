@@ -440,7 +440,7 @@ function loadNeighbors(curCode){
       onEachFeature: (f,l) => { const p=f.properties;
         l.bindTooltip(`${p.dong} (클릭하면 이동)`, {sticky:true});
         l.on('click', ()=> loadDong(p.code, p.dong));
-        l.on('mouseover', ()=> l.setStyle({fillOpacity:0.12, color:'#1769aa', weight:2, opacity:0.9}));
+        l.on('mouseover', ()=> l.setStyle({fillOpacity:0.01, color:'#1769aa', weight:2, opacity:0.9}));  // 채움 그대로(검은 면 안 뜸), 외곽선만 강조
         l.on('mouseout',  ()=> l.setStyle(NB));
       }}).addTo(map);
     cur.neighbors.bringToBack();      // 현재 동 필지/통 아래로 → 동 안쪽 클릭은 필지(통 선택) 유지
@@ -482,7 +482,7 @@ function showOverview(){
       onEachFeature:(f,l)=>{ const p=f.properties;
         l.bindTooltip(`${p.dong} — 클릭하면 이동`,{sticky:true});
         l.on('click',()=>loadDong(p.code,p.dong));
-        l.on('mouseover',()=>l.setStyle({fillOpacity:.1,weight:2.4,color:'#1769aa'}));
+        l.on('mouseover',()=>l.setStyle({fillOpacity:0,weight:2.6,color:'#1769aa'}));  // 채움 없이 외곽선만
         l.on('mouseout',()=>l.setStyle({fillOpacity:0,weight:1.2,color:'#333'})); }}).addTo(map);
     // ① 시흥시 외곽선(굵은 대비색) — 주변 시와 확실히 구분
     ov.city = L.geoJSON(city,{interactive:false,
