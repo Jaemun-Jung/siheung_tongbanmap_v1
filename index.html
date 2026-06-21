@@ -98,10 +98,10 @@
 
   <label>② 주소·지번 검색</label>
   <div class="row tight">
-    <input id="q" placeholder="도로명(마유로20번길 35) 또는 지번(491)" style="flex:1"/>
+    <input id="q" placeholder="도로명(마유로20번길 35) 또는 지번(거모동 1859)" style="flex:1"/>
     <button class="b primebtn" id="go">검색</button>
   </div>
-  <div class="hint">도로명(로·길)은 시 전체에서 · 지번은 현재 동에서 찾습니다.</div>
+  <div class="hint">도로명·지번 모두 시 전체에서 찾아 해당 통으로 이동합니다. 지번은 '거모동 1859'처럼 법정동과 함께 입력하면 정확합니다.</div>
 
   <!-- 결과 / 상태 / 선택 / 검증 (항상 표시) -->
   <div id="res">행정동을 선택하거나 전체지도를 보세요.</div>
@@ -563,13 +563,42 @@ function search(){
   if(/[로길]/.test(v)) searchAddress(v);      // 도로명주소 → juso
   else searchJibun(v);                         // 지번(현재 동)
 }
-// 지번 검색(현재 표시 동 안)
+// 지번 검색(시 전체) — "법정동 지번"(예: 거모동 1859) 또는 지번만. 별표 인덱스로 통 조회→이동
 function searchJibun(v){
-  if(!curParcelsData){ setStatus('지번 검색은 동을 먼저 선택하세요. (도로명은 동 선택 없이 가능)'); return; }
-  const f=(curParcelsData.features||[]).find(f=>{ const j=f.properties.지번; return j===v||j===('산'+v); });
-  if(f){ const p=f.properties; map.fitBounds(L.geoJSON(f).getBounds(),{maxZoom:18});
-    $('res').innerHTML=`<b>${p.법정동} ${p.지번}</b><br>${p.통}통 ${p.반||''}반 <small>(별표 지번)</small>`; setStatus(''); }
-  else setStatus(`"${v}" 지번을 못 찾음 (현재 동 별표에 없을 수 있음)`);
+  const m=v.match(/^\s*(\S*?[동리])?\s*(산?\d+(?:-\d+)?)\s*$/);
+  if(!m){ setStatus('지번 형식이 아닙니다 (예: 거모동 1859 또는 1859).'); return; }
+  const dn=m[1]||'', jb=m[2];
+  setStatus('지번 검색 중…');
+  ensureIndex().then(idx=>{
+    if(dn){                                            // 법정동+지번 → 시 전체 정확 조회
+      const hit=idx[dn+'|'+jb];
+      if(hit) return navToHit(hit, dn, jb, `${dn} ${jb}`);
+      setStatus(`"${dn} ${jb}" 별표에 없음(통 미상). 지번을 확인하세요.`); return;
+    }
+    const keys=Object.keys(idx).filter(k=>k.endsWith('|'+jb));   // 지번만 → 시 전체 검색
+    if(!keys.length){ setStatus(`"${jb}" 지번을 못 찾음. 법정동과 함께 입력해 보세요(예: 거모동 ${jb}).`); return; }
+    if(keys.length===1){ const k=keys[0]; return navToHit(idx[k], k.split('|')[0], jb, k.replace('|',' ')); }
+    const curK=keys.find(k=>idx[k][0]===curCode);              // 여러 곳이면 현재 동 우선
+    if(curK){ return navToHit(idx[curK], curK.split('|')[0], jb, curK.replace('|',' ')); }
+    const dongs=[...new Set(keys.map(k=>k.split('|')[0]))];
+    setStatus(`"${jb}"이 여러 곳에 있습니다(법정동 ${dongs.length}개). 함께 입력: ${dongs.slice(0,6).join(', ')}${dongs.length>6?' 등':''}`);
+  });
+}
+// 인덱스 결과 [code,dong,통,반]로 이동 + 통 강조 + 해당 지번(없으면 통)으로 줌
+function navToHit(hit, dongName, jibun, label){
+  const [code,dong,t,b]=hit;
+  setStatus(`${dong} 불러오는 중…`);
+  loadDong(code,dong,()=>{
+    selectSingle(t);
+    let lyr=null, exact=null;
+    cur.parcels.eachLayer(l=>{ const p=l.feature.properties;
+      if(p.통===t && !lyr) lyr=l;
+      if(!exact && String(p.지번)===jibun && p.법정동===dongName) exact=l; });
+    const tgt=exact||lyr;
+    if(tgt) map.fitBounds(tgt.getBounds().pad(.4),{maxZoom:18});
+    $('res').innerHTML=`<b>${label||(dongName+' '+jibun)}</b> → <b>${dong} ${t}통${b?' '+b+'반':''}</b> <small>(별표 지번)</small>`;
+    setStatus('');
+  });
 }
 // 주소 인덱스 지연 로드
 let addrIndex=null;
