@@ -100,6 +100,7 @@
   <!-- ===== 기본: 동 선택 + 검색 (항상 표시) ===== -->
   <label>① 행정동 선택</label>
   <select id="dong-select"></select>
+  <select id="tong-select" style="margin-top:6px;display:none"></select>
   <button class="b wide" id="overview-btn">🗺️ 시흥시 전체지도</button>
 
   <label>② 주소·지번 검색</label>
@@ -382,6 +383,23 @@ function renderDongList(dongs){
       o.value=d.code; o.textContent=d.dong; o.dataset.dong=d.dong; sel.appendChild(o); });
   sel.onchange = ()=>{ const o=sel.selectedOptions[0]; if(o && o.dataset.dong) loadDong(o.value, o.dataset.dong); };
 }
+// 현재 동의 통 목록 → 통 드롭다운 채움(동 선택 시)
+function populateTongSelect(){
+  const sel=$('tong-select'); if(!sel) return;
+  const tongs=[...new Set((curTongData&&curTongData.features||[]).map(f=>+f.properties.통))].sort((a,b)=>a-b);
+  sel.innerHTML='<option value="">통 선택…(클릭 시 이동)</option>'+
+    tongs.map(t=>`<option value="${t}">${t}통</option>`).join('');
+  sel.style.display = tongs.length ? 'block' : 'none';
+}
+// 통 선택 → 강조 + 그 통으로 줌
+function gotoTong(t){
+  if(t===''||t==null) return;
+  t=+t; selectSingle(t);
+  const b=L.latLngBounds([]);
+  if(cur.parcels) cur.parcels.eachLayer(l=>{ if(+l.feature.properties.통===t) b.extend(l.getBounds()); });
+  if(b.isValid()) map.fitBounds(b.pad(0.25),{maxZoom:17});
+}
+$('tong-select').onchange = e => gotoTong(e.target.value);
 
 // ---------- 레이어 정리 ----------
 function clearGroup(g){ for(const k in g){ if(g[k]){ map.removeLayer(g[k]); g[k]=null; } } }
@@ -405,7 +423,7 @@ function loadDong(code, dong, afterLoad){
     loadNeighbors(code);
     map.fitBounds(cur.admin.getBounds(),{padding:[20,20]});
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 통/필지를 클릭하거나 지번을 검색하세요.`;
-    setStatus(''); showIssues(code); renderManualList();
+    setStatus(''); showIssues(code); renderManualList(); populateTongSelect();
     if(afterLoad) afterLoad();
     if(window.matchMedia('(max-width:640px)').matches) $('panel').classList.remove('open');
   }).catch(e=> setStatus(`${dong} 로드 실패: ${e}`));
@@ -473,7 +491,7 @@ function showOverview(){
   clearGroup(cur); clearGroup(ov); curParcels=null; curCode=null;
   selected.clear(); updateSelPanel();
   $('cur-dong').textContent='시흥시 전체'; $('dong-badge').style.display='none';
-  $('dong-select').value=''; setStatus('전체지도 불러오는 중…');
+  $('dong-select').value=''; $('tong-select').style.display='none'; setStatus('전체지도 불러오는 중…');
   Promise.all([
     fetch('out/overview/all_tong.geojson').then(r=>r.json()),
     fetch('out/overview/all_admin.geojson').then(r=>r.json()),
