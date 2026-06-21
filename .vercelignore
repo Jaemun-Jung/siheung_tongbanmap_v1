@@ -1,0 +1,30 @@
+# 배포(정적 사이트)에 필요 없는 것 — index.html + out/ 만 있으면 됨
+.venv/
+__pycache__/
+*.py
+*.pyc
+*.log
+requirements.txt
+
+# 빌드 입력/원본(런타임 불필요)
+data/
+shp_admin/
+LSMD_CONT_LDREG_*
+*.shp
+*.dbf
+*.shx
+*.prj
+*.cpg
+*.zip
+
+# 문서/부산물
+*.md
+NEXT_STEPS.md
+*_print.pdf
+*_print.png
+print_settings.json
+잘못된 지역.PNG
+
+# 옛 단독 동별 지도(셸에서 안 씀, 동당 5~9MB)
+out/*/*_map.html
+out/gunja_map.html
