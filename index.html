@@ -105,6 +105,17 @@
    .panel.open{display:block}
    #panel-toggle{display:block}
  }
+ /* ===== 인쇄: 선택한 영역만 깔끔하게 한 장으로 ===== */
+ #print-header{display:none}
+ .printing #panel,.printing #panel-toggle,.printing #dong-badge,
+ .printing .leaflet-control-container,.printing #helppop{display:none !important}
+ .printing #map{top:60px}
+ .printing .search-pin{animation:none}
+ .printing #print-header{display:block;position:absolute;z-index:2500;top:0;left:0;right:0;height:60px;
+   background:#fff;border-bottom:3px solid var(--blue);padding:8px 18px}
+ #print-header .ph-title{font-size:19px;font-weight:800;color:#111}
+ #print-header .ph-sub{font-size:12px;color:#555;margin-top:3px}
+ @media print{ @page{size:A4 landscape;margin:6mm} }
 </style></head><body>
 <button id="panel-toggle">☰</button>
 <div id="dong-badge"></div>
@@ -201,14 +212,22 @@
   </details>
 
   <details class="sec">
-    <summary>🖨️ 인쇄용 출력 (PDF/PNG)</summary>
+    <summary>🖨️ 영역 인쇄 (PDF 저장)</summary>
     <div class="secbody">
-      <button class="b wide" id="export-print" style="margin-top:4px">출력 설정 내보내기</button>
-      <div class="hint">설정 파일 다운로드 → <code>출력하기.bat</code> 더블클릭 → 고해상도 PDF·PNG</div>
+      <button class="b wide primebtn" id="print-area" style="margin-top:4px">🖨️ 인쇄할 영역 선택</button>
+      <div id="print-bar" style="display:none;margin-top:6px">
+        <div class="row tight">
+          <button class="b" id="print-go" style="flex:1;font-weight:600">🖨️ 이 영역 인쇄</button>
+          <button class="b" id="print-redo">↺ 다시</button>
+          <button class="b" id="print-cancel">✕</button>
+        </div>
+      </div>
+      <div class="hint">버튼을 누른 뒤 지도에서 <b>인쇄할 사각형을 드래그</b>하세요. 좁게 고를수록 크고 또렷하게 인쇄됩니다. 인쇄창에서 <b>‘PDF로 저장’</b> 또는 프린터 인쇄를 고르면 됩니다.</div>
     </div>
   </details>
 </div>
 <div id="map"></div>
+<div id="print-header"></div>
 <div id="helppop"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -870,19 +889,58 @@ function searchAddress(kw){
 $('go').onclick = search;
 $('q').addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
 
-// 출력 설정 내보내기 → gen_print.py --export 로 고해상도 PDF/PNG
-$('export-print').onclick = ()=>{
-  if(!curCode){ setStatus('동을 먼저 선택하세요(출력은 동 단위).'); return; }
-  const s={ code:curCode, dong:$('cur-dong').textContent.replace('📍 ','').trim(),
-    palette:settings.palette, lineWeight:settings.lineWeight, fillAlpha:settings.fillAlpha,
-    tongColors:settings.tongColors, select:[...selected].map(String), boundaryMode,
-    paper:'A4', orient:'landscape', date:new Date().toISOString().slice(0,10) };
-  const blob=new Blob([JSON.stringify(s,null,2)],{type:'application/json'});
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-  a.download='print_settings.json'; document.body.appendChild(a); a.click(); a.remove();
-  $('res').innerHTML=`출력 설정 다운로드됨 (${s.dong}).<br>`+
-    `<small>터미널: <code>python gen_print.py --export print_settings.json</code></small>`;
-};
+// ===== 영역 인쇄: 지도에서 사각형을 드래그해 그 부분만 한 장으로 인쇄(PDF 저장) =====
+let printSelecting=false, printRect=null, printBounds=null, printDownLL=null;
+function clearPrintRect(){ if(printRect){ map.removeLayer(printRect); printRect=null; }
+  printBounds=null; $('print-bar').style.display='none'; }
+function endSelectMode(){ printSelecting=false; map.dragging.enable();
+  map.getContainer().style.cursor=''; map.off('mousedown',onPDown);
+  map.off('mousemove',onPMove); map.off('mouseup',onPUp); }
+function startPrintSelect(){
+  clearPrintRect();
+  printSelecting=true; map.dragging.disable(); map.getContainer().style.cursor='crosshair';
+  setStatus('지도에서 인쇄할 사각형 영역을 드래그하세요.');
+  map.on('mousedown',onPDown);
+}
+function onPDown(e){ if(!printSelecting) return; printDownLL=e.latlng;
+  if(printRect){ map.removeLayer(printRect); printRect=null; }
+  map.on('mousemove',onPMove); map.on('mouseup',onPUp); }
+function onPMove(e){ const b=L.latLngBounds(printDownLL,e.latlng);
+  if(printRect) printRect.setBounds(b);
+  else printRect=L.rectangle(b,{color:'#e53935',weight:2,dashArray:'5 4',
+    fill:true,fillColor:'#e53935',fillOpacity:.06,interactive:false}).addTo(map); }
+function onPUp(e){ const b=L.latLngBounds(printDownLL,e.latlng); endSelectMode();
+  if(b.getNorth()-b.getSouth()<1e-5 || b.getEast()-b.getWest()<1e-5){
+    clearPrintRect(); setStatus('영역이 너무 작습니다. 버튼을 다시 눌러 드래그하세요.'); return; }
+  printBounds=b; if(printRect) printRect.setBounds(b);
+  $('print-bar').style.display='block';
+  setStatus('영역 선택됨 — ‘이 영역 인쇄’를 누르세요.');
+}
+function buildPrintHeader(){
+  const dong = curCode ? $('cur-dong').textContent.replace('📍 ','').trim() : '시흥시 전체';
+  const sel=[...selected].sort((a,b)=>a-b);
+  const d=new Date(); const ds=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  $('print-header').innerHTML=`<div class="ph-title">시흥시 ${dong} 통·반 경계도</div>`
+    +`<div class="ph-sub">${sel.length?('강조 통: '+sel.join(', ')+'통'):'전체 통'} · 작성일 ${ds} · 자료: 시행규칙 별표 + 연속지적도</div>`;
+}
+function doPrint(){
+  if(!printBounds){ setStatus('먼저 인쇄할 영역을 선택하세요.'); return; }
+  const prevC=map.getCenter(), prevZ=map.getZoom(), b=printBounds;
+  if(printRect){ map.removeLayer(printRect); printRect=null; }   // 점선 테두리는 인쇄에서 제외
+  buildPrintHeader();
+  document.body.classList.add('printing');
+  map.invalidateSize(false);
+  map.fitBounds(b,{animate:false,padding:[2,2]});
+  const restore=()=>{ window.removeEventListener('afterprint',restore);
+    document.body.classList.remove('printing'); map.invalidateSize(false);
+    map.setView(prevC,prevZ,{animate:false}); clearPrintRect(); setStatus(''); };
+  window.addEventListener('afterprint',restore);
+  setTimeout(()=>{ window.print(); }, 600);   // 타일·라벨이 새 크기로 그려질 시간을 준 뒤 인쇄
+}
+$('print-area').onclick = startPrintSelect;
+$('print-go').onclick = doPrint;
+$('print-redo').onclick = ()=>{ clearPrintRect(); startPrintSelect(); };
+$('print-cancel').onclick = ()=>{ endSelectMode(); clearPrintRect(); setStatus(''); };
 
 // ---------- 다중 통 선택 ----------
 function selectSingle(t){ selected.clear(); selected.add(t); afterSel(); }
