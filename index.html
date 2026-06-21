@@ -423,6 +423,12 @@ function loadDong(code, dong, afterLoad){
   $('cur-dong').textContent='📍 '+dong;
   $('dong-badge').textContent=dong; $('dong-badge').style.display='block';
   setStatus(`${dong} 불러오는 중…`);
+  // 클릭 즉시(페치 전) 목표 동으로 뷰를 점프시킨다 — manifest의 동 bounds 사용.
+  // 무거운 필지 렌더가 항상 '최종 줌'에서만 일어나도록 보장해, 낮은 줌에서
+  // 필지 테두리가 뭉쳐 만드는 어두운 덩어리(동을 감싸는 검은 네모)나 이전 동 잔상이
+  // 줌인 애니메이션에 확대돼 깜빡이는 현상을 원천 차단한다.
+  const md = manifest && (manifest.dongs||[]).find(d=>d.code===code);
+  if(md && md.bounds) map.fitBounds(md.bounds,{padding:[20,20],animate:false});
   const base = `out/${code}/${dong}`;
   Promise.all([
     fetch(`${base}_parcels.geojson`).then(r=>r.json()),
