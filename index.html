@@ -93,8 +93,8 @@
 
   <!-- ===== 기본: 동 선택 + 검색 (항상 표시) ===== -->
   <label>① 행정동 선택</label>
-  <input id="dong-search" placeholder="동 이름 검색 (예: 군자)"/>
-  <select id="dong-select" size="5" style="height:auto;margin-top:6px"></select>
+  <input id="dong-search" placeholder="동 이름 검색 (예: 군자) — 입력 후 Enter"/>
+  <select id="dong-select" style="margin-top:6px"></select>
   <button class="b wide" id="overview-btn">🗺️ 시흥시 전체지도</button>
 
   <label>② 주소·지번 검색</label>
@@ -356,20 +356,22 @@ function showCityIssues(){
 
 function renderDongList(dongs){
   const sel = $('dong-select'); sel.innerHTML='';
+  const ph=document.createElement('option');                 // 드롭다운 안내(선택 전 표시)
+  ph.value=''; ph.textContent='행정동을 선택하세요 ▾'; sel.appendChild(ph);
   dongs.forEach(d=>{ const o=document.createElement('option');
     o.value=d.code; o.textContent=`${d.dong} (${d.n_tong}통)`; o.dataset.dong=d.dong; sel.appendChild(o); });
-  sel.onchange = ()=>{ const o=sel.selectedOptions[0]; if(o) loadDong(o.value, o.dataset.dong); };
+  sel.onchange = ()=>{ const o=sel.selectedOptions[0]; if(o && o.dataset.dong) loadDong(o.value, o.dataset.dong); };
 }
 $('dong-search').addEventListener('input', e=>{
   const q=e.target.value.trim();
-  [...$('dong-select').options].forEach(o=>{ o.hidden = q && !o.dataset.dong.includes(q); });
+  [...$('dong-select').options].forEach(o=>{ if(!o.dataset.dong) return; o.hidden = q && !o.dataset.dong.includes(q); });
 });
 // 동 이름 검색 후 엔터 → 일치 동으로 바로 이동(정확>접두>부분 일치)
 $('dong-search').addEventListener('keydown', e=>{
   if(e.key!=='Enter') return;
   e.preventDefault();
   const q=e.target.value.trim(); if(!q) return;
-  const opts=[...$('dong-select').options];
+  const opts=[...$('dong-select').options].filter(o=>o.dataset.dong);
   const hit = opts.find(o=>o.dataset.dong===q)
            || opts.find(o=>o.dataset.dong.startsWith(q))
            || opts.find(o=>o.dataset.dong.includes(q));
