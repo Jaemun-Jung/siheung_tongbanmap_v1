@@ -476,7 +476,14 @@ function showOverview(){
       onEachFeature:(f,l)=>{ const p=f.properties;
         l.bindPopup(`<b>${p.dong}</b> ${p.통}통<br><small>클릭하면 상세 보기</small>`);
         l.on('click',()=>loadDong(p.code,p.dong)); }}).addTo(map);
-    ov.admin = L.geoJSON(admin,{style:{color:'#333',weight:1.2,fill:false,opacity:.7}}).addTo(map);
+    // 행정동 전체 영역(빈 땅 포함)을 클릭 가능하게 — 투명 채움, 통 위에 깔아 어디를 눌러도 이동
+    ov.admin = L.geoJSON(admin,{
+      style:{color:'#333',weight:1.2,opacity:.7,fill:true,fillColor:'#1769aa',fillOpacity:0},
+      onEachFeature:(f,l)=>{ const p=f.properties;
+        l.bindTooltip(`${p.dong} — 클릭하면 이동`,{sticky:true});
+        l.on('click',()=>loadDong(p.code,p.dong));
+        l.on('mouseover',()=>l.setStyle({fillOpacity:.1,weight:2.4,color:'#1769aa'}));
+        l.on('mouseout',()=>l.setStyle({fillOpacity:0,weight:1.2,color:'#333'})); }}).addTo(map);
     // ① 시흥시 외곽선(굵은 대비색) — 주변 시와 확실히 구분
     ov.city = L.geoJSON(city,{interactive:false,
       style:{color:'#c0392b',weight:4,fill:false,opacity:.95}}).addTo(map);
