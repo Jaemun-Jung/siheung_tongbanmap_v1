@@ -628,8 +628,12 @@ function setBoundaryMode(m){
 function applyToggles(){
   if(cur.parcels){ cur.parcels.setStyle(pStyle); }
   toggleLayer($('t-label').classList.contains('on'), cur.labels);
-  toggleLayer($('t-admin').classList.contains('on'), cur.admin);
-  toggleLayer($('t-admin').classList.contains('on'), cur.admincase);
+  // 동경계: 흰 halo(아래) → 검정선(위) 순서로 올려야 검정 경계가 보인다.
+  // (순서가 반대면 다시 켤 때 흰 halo가 검정선을 덮어 흰색만 보임)
+  const adminOn = $('t-admin').classList.contains('on');
+  toggleLayer(adminOn, cur.admincase);
+  toggleLayer(adminOn, cur.admin);
+  if(adminOn){ if(cur.admincase) cur.admincase.bringToFront(); if(cur.admin) cur.admin.bringToFront(); }
 }
 function toggleLayer(on, layer){ if(!layer) return; if(on){ if(!map.hasLayer(layer)) layer.addTo(map);} else { if(map.hasLayer(layer)) map.removeLayer(layer);} }
 function press(btn,on){ btn.classList.toggle('on',on); }
