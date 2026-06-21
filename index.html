@@ -144,8 +144,9 @@
         <button class="b" id="t-line">경계선</button>
         <button class="b on" id="t-label">통번호</button>
         <button class="b on" id="t-admin">동경계</button>
+        <button class="b" id="t-unassigned">미배정 대지</button>
       </div>
-      <div class="hint">통 클릭 = 단일 선택 · Ctrl+클릭(우클릭/길게) = 다중 선택</div>
+      <div class="hint">통 클릭 = 단일 선택 · Ctrl+클릭 = 다중 선택 · '미배정 대지'를 켜면 통 없는 대지를 클릭해 지번 확인</div>
 
       <label>색상 / 스타일</label>
       <div class="row tight" id="palettes">
@@ -270,7 +271,8 @@ const tongStyle = f => { const mn=manualF(f); const on=selected.has(f.properties
     dashArray:(mn||approx(f))?'5 4':null, fill:false, opacity: dim?0.35:0.95 }; };
 
 // ---------- 상태 ----------
-let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,labels:null}, curParcels=null;
+let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,labels:null,unassigned:null}, curParcels=null;
+let curUnassignedData=null;
 let ov={mask:null,tong:null,admin:null,city:null,labels:null};
 let allAdminCache=null;   // out/overview/all_admin.geojson 캐시(이웃 동 클릭용)
 let curTongData=null;     // 필지기반 통 GeoJSON
@@ -416,10 +418,11 @@ function loadDong(code, dong, afterLoad){
     fetch(`${base}_parcels.geojson`).then(r=>r.json()),
     fetch(`${base}_tong.geojson`).then(r=>r.json()),
     fetch(`${base}_admin.geojson`).then(r=>r.json()),
-  ]).then(([parcels,tong,admin])=>{
-    curParcelsData=parcels; curTongData=tong;
+    fetch(`${base}_unassigned.geojson`).then(r=>r.ok?r.json():null).catch(()=>null),
+  ]).then(([parcels,tong,admin,unassigned])=>{
+    curParcelsData=parcels; curTongData=tong; curUnassignedData=unassigned;
     cur.admin = L.geoJSON(admin,{style:{color:'#111',weight:4,fill:false,opacity:.85}}).addTo(map);
-    renderBoundary();
+    renderBoundary(); renderUnassigned();
     loadNeighbors(code);
     map.fitBounds(cur.admin.getBounds(),{padding:[20,20]});
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 통/필지를 클릭하거나 지번을 검색하세요.`;
@@ -583,10 +586,24 @@ function applyToggles(){
 }
 function toggleLayer(on, layer){ if(!layer) return; if(on){ if(!map.hasLayer(layer)) layer.addTo(map);} else { if(map.hasLayer(layer)) map.removeLayer(layer);} }
 function press(btn,on){ btn.classList.toggle('on',on); }
+// 미배정 대지(통 없는 대지) — 켜면 옅은 회색 점선으로 표시, 클릭 시 지번 확인
+function renderUnassigned(){
+  if(cur.unassigned){ map.removeLayer(cur.unassigned); cur.unassigned=null; }
+  if(!$('t-unassigned').classList.contains('on') || !curUnassignedData) return;
+  cur.unassigned = L.geoJSON(curUnassignedData, { renderer: L.canvas(),
+    style:{color:'#777',weight:.8,fillColor:'#9aa',fillOpacity:.18,opacity:.75,dashArray:'3 2'},
+    onEachFeature:(f,l)=>{ const p=f.properties;
+      const txt=`${p.법정동} ${p.지번} <small>(${p.지목||'대'} · <b>통 미배정</b>)</small>`;
+      l.bindPopup(txt); l.on('click', e=>{ L.DomEvent.stopPropagation(e); $('res').innerHTML=txt; });
+    }}).addTo(map);
+}
 $('t-fill').onclick = e=>{ mode='fill'; press(e.target,true); press($('t-line'),false); applyToggles(); };
 $('t-line').onclick = e=>{ mode='line'; press(e.target,true); press($('t-fill'),false); applyToggles(); };
 $('t-label').onclick= e=>{ press(e.target,!e.target.classList.contains('on')); applyToggles(); };
 $('t-admin').onclick= e=>{ press(e.target,!e.target.classList.contains('on')); applyToggles(); };
+$('t-unassigned').onclick= e=>{ press(e.target,!e.target.classList.contains('on'));
+  if(!curUnassignedData && e.target.classList.contains('on')) setStatus('이 동은 미배정 대지 데이터가 없습니다.');
+  renderUnassigned(); };
 
 // ---------- 지번 검색 ----------
 function search(){
