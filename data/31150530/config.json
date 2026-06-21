@@ -3,11 +3,13 @@
   "admin_code": "31150530",
   "legal_dongs": {
     "4139010300": "방산동",
+    "4139010400": "포동",
     "4139010500": "미산동"
   },
   "target_beopjeong": [
     "미산동",
-    "방산동"
+    "방산동",
+    "포동"
   ],
   "table_csv": "관할구역.csv",
   "source_crs_fallback": "EPSG:5186",

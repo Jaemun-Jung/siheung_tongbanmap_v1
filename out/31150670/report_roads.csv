@@ -100,7 +100,9 @@
 18,0,군자동,751-2,road_match
 18,0,군자동,751-4,road_match
 18,0,군자동,752,road_match
+18,0,군자동,754,road_match
 18,0,군자동,757,road_match
+18,0,군자동,758,road_match
 31,0,군자동,790,road_match
 31,0,군자동,792,road_match
 31,0,군자동,794,road_match
@@ -120,6 +122,8 @@
 18,0,군자동,816-2,road_split
 31,0,군자동,817,road_match
 31,0,군자동,818,road_match
+18,0,군자동,828,road_match
+18,0,군자동,831-2,road_match
 18,0,군자동,산22-20,road_match
 18,0,군자동,산22-21,road_match
 18,0,군자동,산22-22,road_match
@@ -128,4 +132,5 @@
 18,0,군자동,산32-4,road_split
 18,0,군자동,산32-17,road_split
 31,0,군자동,산32-17,road_split
+18,0,군자동,산32-19,road_match
 18,0,군자동,산42-2,road_match

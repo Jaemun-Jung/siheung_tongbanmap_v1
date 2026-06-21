@@ -47,6 +47,8 @@
 2,0,정왕동,2704-2,road_match
 2,0,정왕동,2708,road_match
 2,0,정왕동,2710,road_match
+3,0,정왕동,2711-2,road_split
+4,0,정왕동,2711-2,road_split
 2,0,정왕동,2717,road_match
 2,0,정왕동,2717-1,road_match
 2,0,정왕동,2718-8,road_match
@@ -80,7 +82,9 @@
 12,0,정왕동,2796-11,road_match
 9,0,정왕동,2800,road_match
 9,0,정왕동,2802,road_match
+9,0,정왕동,2802-1,road_match
 9,0,정왕동,2802-2,road_match
+9,0,정왕동,2803-13,road_match
 9,0,정왕동,2816-16,road_match
 12,0,정왕동,2821,road_match
 12,0,정왕동,2823,road_match

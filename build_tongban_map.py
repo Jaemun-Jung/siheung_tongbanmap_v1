@@ -92,78 +92,106 @@ def apply_config(cfg, shp_path, out_root):
     print(f"config loaded: {ADMIN_DONG}/{ADMIN_CODE}  "
           f"(CSV={os.path.basename(TABLE_CSV)}, SHP={SHP_PATH}, OUT={OUT_DIR})")
 
-# ---------- 1. 지번 전개 로직 (실데이터로 검증 완료) ----------
-APT = re.compile(r'아파트|Ⓐ|상가|\d+호|\(')
+# ---------- 1. 지번 전개 로직 (별표 표기 다양성 대응) ----------
+# 별표 관할구역 표기가 동마다 조금씩 다름: 범위(491~537, 공백 295 ~ 340), 가운뎃점 나열
+# (256-1ㆍ2ㆍ3), 부번 범위(169-35~40), 아파트명 혼합(243-6(선경그린빌라트)), 다(多)법정동,
+# 공백 구분(225~229 225-1). 모두 빠짐없이 전개한다.
+APT_WORD = re.compile(r'아파트|빌라|연립|상가|단지|타운|마을|푸르지오|레이크|클래스|호반|어울림|센트럴|'
+                      r'스타힐스|그린빌|건영|세원|삼호|혜성|건안|더존|중흥|호수|써밋|Ⓐ|\d+호|\d+동')
+BEOP_RE = re.compile(r'^([가-힣]{1,4}[동리])\s*(.*)$')   # 2글자 법정동(포동 등)도 인식
+SPEC_FULL = re.compile(r'^산?\d[\d~\-ㆍ]*$')
 
 def normalize(s):
-    return s.replace('～', '~').replace('〜', '~').replace('∼', '~').replace('·', 'ㆍ')
+    s = (str(s).replace('～', '~').replace('〜', '~').replace('∼', '~')
+         .replace('·', 'ㆍ').replace('，', ',').replace('​', '').replace('　', ' '))
+    s = re.sub(r'\s*~\s*', '~', s)          # 틸드 주변 공백 제거(295 ~ 340 → 295~340)
+    s = re.sub(r'\s*ㆍ\s*', 'ㆍ', s)         # 가운뎃점 주변 공백 제거
+    return s
 
-def parse_token(tok):
-    tok = tok.strip().strip(',')
-    if not tok:
+def parse_spec(spec, san):
+    """깨끗한 지번 스펙(169-35~40, 256-1ㆍ2ㆍ3, 491~537, 49~55 ...) → 지번 리스트('산' 포함)."""
+    core = spec
+    if not core:
         return []
-    san = tok.startswith('산')
-    core = tok[1:].strip() if san else tok
     if 'ㆍ' in core:
-        parts = core.split('ㆍ')
-        res = []
+        parts = [p for p in core.split('ㆍ') if p]
         if '-' in parts[0]:
             base = parts[0].split('-')[0]
             seq = [parts[0]] + [p if '-' in p else f"{base}-{p}" for p in parts[1:]]
         else:
             seq = parts
+        out = []
         for p in seq:
-            r = parse_token(('산' if san else '') + p)
+            r = parse_spec(p, False)
             if r is None:
                 return None
-            res += r
-        return res
+            out += r
+        return ['산' + x for x in out] if san else out
     if '~' in core:
         a, b = [x.strip() for x in core.split('~', 1)]
         try:
-            if '-' in a and '-' not in b:                      # 부번 범위
+            if '-' in a and '-' not in b:                       # 169-35~40
                 base, sub = a.split('-', 1)
                 out = [f"{base}-{n}" for n in range(int(sub), int(b) + 1)]
-            elif '-' not in a and '-' not in b:                # 본번 범위
+            elif '-' not in a and '-' not in b:                 # 491~537
                 out = [str(n) for n in range(int(a), int(b) + 1)]
-            elif '-' not in a and '-' in b:                    # 본번범위 + 끝부번
-                bmain = b.split('-')[0]
-                out = [str(n) for n in range(int(a), int(bmain) + 1)] + [b]
-            else:
-                return None
+            elif '-' not in a and '-' in b:                     # 491~537-2
+                bm = b.split('-')[0]
+                out = [str(n) for n in range(int(a), int(bm) + 1)] + [b]
+            else:                                               # 169-3~169-7 / 169-3~170-2
+                am, asub = a.split('-'); bm, bsub = b.split('-')
+                if am == bm:
+                    out = [f"{am}-{n}" for n in range(int(asub), int(bsub) + 1)]
+                else:
+                    out = [a, b] + [str(n) for n in range(int(am) + 1, int(bm))]
         except ValueError:
+            return None
+        if len(out) > 2000:                                     # 비정상 범위(파싱 오류) 안전장치
             return None
     else:
         out = [core]
     return ['산' + x for x in out] if san else out
 
-def expand_table(csv_path):
+def expand_table(csv_path, valid_beop):
+    """별표 CSV → [(통,반,법정동,지번,아파트bool)], 아파트행, 실패. valid_beop=관할 법정동 집합."""
     import csv
     rows = list(csv.DictReader(open(csv_path, encoding="utf-8-sig")))
     recs, apt_rows, failed = [], [], []
     for r in rows:
-        tong, ban = int(r['통']), int(r['반'])
-        raw = normalize(r['관할구역'])
-        dong = raw.split()[0]
-        rest = raw[len(dong):].strip()
-        is_apt = bool(APT.search(rest))
-        if is_apt:
-            m = re.match(r'([\d]+(?:-[\d]+)?)', rest)
-            base = m.group(1) if m else ''
-            apt_rows.append((tong, ban, dong, base, r['관할구역']))
-            if base:
-                recs.append((tong, ban, dong, base, True))
+        try:
+            tong, ban = int(r['통']), int(r['반'])
+        except (ValueError, KeyError, TypeError):
             continue
-        for tok in rest.split(','):
-            tok = tok.strip()
-            if not tok:
+        raw = normalize(r['관할구역'])
+        cur = None
+        for seg in raw.split(','):                              # 콤마/법정동 단위 세그먼트
+            seg = seg.strip()
+            if not seg:
                 continue
-            res = parse_token(tok)
-            if res is None:
-                failed.append((tong, ban, dong, tok))
+            had_apt = ('(' in seg) or bool(APT_WORD.search(seg))
+            seg = re.sub(r'\([^)]*\)', '', seg).strip()         # 아파트명 괄호 제거(지번은 보존)
+            m = BEOP_RE.match(seg)
+            if m and m.group(1) in valid_beop:                  # 알려진 법정동만 전환
+                cur = m.group(1); body = m.group(2).strip()
             else:
+                body = seg
+            if cur is None:
+                failed.append((tong, ban, '', seg)); continue
+            got = False
+            for word in body.split():                          # 지번은 공백으로도 구분됨
+                word = word.strip(',.')
+                if not SPEC_FULL.match(word):                  # 아파트명 등 비지번 단어 → 스킵
+                    continue
+                san = word.startswith('산')
+                core = (word[1:] if san else word).strip('-~ㆍ')
+                res = parse_spec(core, san)
+                if res is None or not res:
+                    failed.append((tong, ban, cur, word)); continue
                 for j in res:
-                    recs.append((tong, ban, dong, j, False))
+                    recs.append((tong, ban, cur, j, had_apt))
+                got = True
+            if not got and body:                               # 지번 없는 아파트명 행
+                apt_rows.append((tong, ban, cur, body, r['관할구역']))
     return recs, apt_rows, failed
 
 # ---------- 2. SHP 측 지번 정규화 ----------
@@ -347,7 +375,7 @@ def main():
     import pandas as pd
 
     print("▶ 1) 통·반 표 전개")
-    recs, apt_rows, failed = expand_table(TABLE_CSV)
+    recs, apt_rows, failed = expand_table(TABLE_CSV, set(TARGET_BEOPJEONG))
     tdf = pd.DataFrame(recs, columns=["통", "반", "법정동", "지번", "아파트"])
     print(f"   전개 지번행 {len(tdf)}, 고유필지 {tdf[['법정동','지번']].drop_duplicates().shape[0]}, "
           f"아파트반 {len(apt_rows)}, 전개실패 {len(failed)}")

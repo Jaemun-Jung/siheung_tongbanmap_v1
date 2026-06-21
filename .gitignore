@@ -21,3 +21,4 @@ files.zip
 *_print.png
 print_settings.json
 .venv/
+rebuild_all.log

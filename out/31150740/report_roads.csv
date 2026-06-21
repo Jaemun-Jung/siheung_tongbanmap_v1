@@ -1,12 +1,13 @@
 ﻿통,반,_dong,_jib,_fill
 9,0,배곧동,46,road_split
-12,0,배곧동,46,road_split
-15,0,배곧동,46,road_split
-12,0,배곧동,56,road_split
-15,0,배곧동,56,road_split
+11,0,배곧동,46,road_split
+13,0,배곧동,46,road_split
+11,0,배곧동,56,road_split
+13,0,배곧동,56,road_split
 9,0,배곧동,60,road_split
 12,0,배곧동,60,road_split
-15,0,배곧동,60,road_split
+11,0,배곧동,60,road_split
+13,0,배곧동,60,road_split
 12,0,배곧동,67,road_match
 12,0,배곧동,71,road_match
 12,0,배곧동,74,road_match
@@ -39,6 +40,7 @@
 8,0,배곧동,101-34,road_match
 25,0,배곧동,165,road_split
 28,0,배곧동,165,road_split
+29,0,배곧동,168,road_match
 8,0,배곧동,102-5,road_match
 8,0,배곧동,103-7,road_match
 8,0,배곧동,104,road_match
@@ -47,6 +49,7 @@
 8,0,배곧동,111-9,road_match
 8,0,배곧동,116,road_split
 12,0,배곧동,116,road_split
+29,0,배곧동,116,road_split
 8,0,배곧동,142,road_match
 8,0,배곧동,89,road_match
 6,0,배곧동,6,road_split
