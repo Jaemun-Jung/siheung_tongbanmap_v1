@@ -488,9 +488,9 @@ function showOverview(){
         l.on('click',()=>loadDong(p.code,p.dong));
         l.on('mouseover',()=>l.setStyle({fillOpacity:0,weight:2.6,color:'#1769aa'}));  // 채움 없이 외곽선만
         l.on('mouseout',()=>l.setStyle({fillOpacity:0,weight:1.2,color:'#333'})); }}).addTo(map);
-    // ① 시흥시 외곽선(굵은 대비색) — 주변 시와 확실히 구분
+    // ① 시흥시 외곽선(굵은 먹색) — 주변 시와 구분(스포트라이트와 함께). 데이터 색과 안 충돌
     ov.city = L.geoJSON(city,{interactive:false,
-      style:{color:'#c0392b',weight:4,fill:false,opacity:.95}}).addTo(map);
+      style:{color:'#1f2937',weight:4,fill:false,opacity:.95}}).addTo(map);
     map.fitBounds(ov.city.getBounds(),{padding:[20,20]});
     buildOverviewLabels();                       // fitBounds 이후 픽셀로 분산 배치
     $('res').innerHTML = `<b>시흥시 전체</b> — 동을 클릭하거나 목록에서 선택하세요.`;
