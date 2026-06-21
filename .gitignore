@@ -22,3 +22,5 @@ files.zip
 print_settings.json
 .venv/
 rebuild_all.log
+
+.vercel
