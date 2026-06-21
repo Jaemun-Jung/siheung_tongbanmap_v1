@@ -641,12 +641,12 @@ function applyToggles(){
 }
 function toggleLayer(on, layer){ if(!layer) return; if(on){ if(!map.hasLayer(layer)) layer.addTo(map);} else { if(map.hasLayer(layer)) map.removeLayer(layer);} }
 function press(btn,on){ btn.classList.toggle('on',on); }
-// 미배정 대지(통 없는 대지) — 켜면 옅은 회색 점선으로 표시, 클릭 시 지번 확인
+// 미배정 대지(통 없는 대지) — 켜면 선명한 자홍색으로 확 띄움, 클릭 시 지번 확인
 function renderUnassigned(){
   if(cur.unassigned){ map.removeLayer(cur.unassigned); cur.unassigned=null; }
   if(!$('t-unassigned').classList.contains('on') || !curUnassignedData) return;
   cur.unassigned = L.geoJSON(curUnassignedData, { renderer: L.canvas(),
-    style:{color:'#777',weight:.8,fillColor:'#9aa',fillOpacity:.18,opacity:.75,dashArray:'3 2'},
+    style:{color:'#8e0048',weight:1.6,fillColor:'#ff2d95',fillOpacity:.55,opacity:.95},
     onEachFeature:(f,l)=>{ const p=f.properties;
       const txt=`${p.법정동} ${p.지번} <small>(${p.지목||'대'} · <b>통 미배정</b>)</small>`;
       l.bindPopup(txt); l.on('click', e=>{ L.DomEvent.stopPropagation(e); $('res').innerHTML=txt; });
