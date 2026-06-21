@@ -315,14 +315,24 @@ document.addEventListener('click', e=>{
   } else if(!e.target.closest('#helppop')){ pop.style.display='none'; }
 });
 function splitHtml(rv){
-  if(!rv || !rv.n_split) return '';
-  const li = rv.split.map(s=>{
-    const jb = s.지번.slice(0,6).join(', ') + (s.지번.length>6 ? ` 외 ${s.지번.length-6}` : '');
-    return `<li><b>${s.통}통</b>에서 <b>약 ${s.거리m}m</b> 떨어진 ${s.조각필지}필지`+
-           ` <span class="gr g-${GRADE_CLS[s.등급]||'block'}">${GRADE_KOR[s.등급]||s.등급}</span>`+
-           `<br><small>${jb}</small></li>`;
+  if(!rv || !rv.split || !rv.split.length) return '';
+  // 통별로 묶어 요약(한 통이 여러 곳에 흩어진 경우 한 줄로)
+  const byTong={};
+  rv.split.forEach(s=>{ (byTong[s.통]=byTong[s.통]||[]).push(s); });
+  const tongs=Object.keys(byTong).map(Number)
+    .sort((a,b)=> Math.max(...byTong[b].map(s=>s.거리m)) - Math.max(...byTong[a].map(s=>s.거리m)));
+  const li = tongs.map(t=>{
+    const cs=byTong[t], n=cs.length;
+    const totFp=cs.reduce((a,s)=>a+s.조각필지,0);
+    const maxD=Math.max(...cs.map(s=>s.거리m));
+    const big=cs.reduce((a,s)=>s.조각필지>a.조각필지?s:a, cs[0]);
+    const jb=big.지번.slice(0,5).join(', ')+(big.지번.length>5?' 외':'');
+    const flag=(n>=5||maxD>=1000)?` <small style="color:#b03a2e;font-weight:600">— 시행규칙 확인 필요</small>`:'';
+    const where = n>1 ? `<b>${n}곳</b>에 흩어짐 (멀리 약 ${maxD.toLocaleString()}m)` : `약 ${maxD}m 떨어진 ${totFp}필지`;
+    return `<li><b>${t}통</b> — ${where} <span class="gr g-${GRADE_CLS[big.등급]||'block'}">${GRADE_KOR[big.등급]||big.등급}</span>${flag}`+
+           `<br><small>총 ${totFp}필지 · ${jb}</small></li>`;
   }).join('');
-  return `<details class="rev"><summary>🔎 통과 멀리 떨어진 필지 ${rv.n_split}건${helpQ('split')}</summary>`+
+  return `<details class="rev"><summary>🔎 통과 멀리 떨어진 필지 ${tongs.length}개 통${helpQ('split')}</summary>`+
          `<ul>${li}</ul><div class="hint">한 통의 땅인데 다른 땅들과 멀리 떨어져 있음 = 별표(시행규칙)에 그 통 지번을 `+
          `잘못 적었을 가능성. 담당자가 해당 지번을 확인하세요(자동 수정 아님).</div></details>`;
 }
@@ -358,12 +368,12 @@ function showCityIssues(){
   const vals=Object.values(issuesData); if(!vals.length){ el.style.display='none'; return; }
   const T=vals.reduce((a,v)=>a+v.n_table,0), D=vals.reduce((a,v)=>a+v.n_drawn,0);
   const rvs=Object.values(reviewData);
-  const S=rvs.reduce((a,v)=>a+(v.n_split||0),0);
+  const S=rvs.reduce((a,v)=>a+new Set((v.split||[]).map(s=>s.통)).size,0);
   const OM=rvs.reduce((a,v)=>a+(v.n_omit||0),0);
   el.style.display='block';
   const warn=[];
   if(T-D>0) warn.push(`미표시 ${T-D}통`);
-  if(S>0) warn.push(`멀리 떨어진 필지 ${S}건`);
+  if(S>0) warn.push(`멀리 떨어진 필지 ${S}통`);
   if(OM>0) warn.push(`누락 의심 ${OM}필지`);
   el.innerHTML=`<span class="big">시흥시 표 ${T}통 중 <b>${D}통</b> 표시</span>`+
     (warn.length?` <span class="warn">· ${warn.join(' · ')}</span>`:'')+
