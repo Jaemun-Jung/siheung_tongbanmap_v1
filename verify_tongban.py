@@ -100,7 +100,7 @@ def find_omissions(dong_names, assigned, shp):
 def main():
     ap = argparse.ArgumentParser(description="통반 검증(미표시·분리·누락)")
     ap.add_argument("--link", type=float, default=150.0, help="군집 연결 거리(m)")
-    ap.add_argument("--gap", type=float, default=300.0, help="본체에서 분리로 볼 거리(m)")
+    ap.add_argument("--gap", type=float, default=200.0, help="본체에서 분리로 볼 거리(m). 낮출수록 민감")
     ap.add_argument("--no-shp", action="store_true", help="지적도 없이 실행(누락 점검 생략)")
     args = ap.parse_args()
 
