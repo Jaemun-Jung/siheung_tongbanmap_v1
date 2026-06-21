@@ -492,7 +492,7 @@ function loadDong(code, dong, afterLoad){
     tongCidx={}; (tong.features||[]).forEach(f=>{ if(f.properties.cidx!=null) tongCidx[+f.properties.통]=f.properties.cidx; });
     // 행정동 경계 = 흰색 외곽(halo) 위에 굵은 검정 실선 → 통 경계(가는 회색)와 확실히 구분.
     cur.admincase = L.geoJSON(admin,{style:{color:'#fff',weight:8,fill:false,opacity:.95,lineJoin:'round',lineCap:'round'}}).addTo(map);
-    cur.admin = L.geoJSON(admin,{style:{color:'#000',weight:4,fill:false,opacity:1,lineJoin:'round',lineCap:'round'}}).addTo(map);
+    cur.admin = L.geoJSON(admin,{style:{color:'#1e88e5',weight:4,fill:false,opacity:1,lineJoin:'round',lineCap:'round'}}).addTo(map);  // 전체보기 동경계와 같은 밝은 파랑(흰 헤일로 위)
     // 뷰를 먼저 해당 동으로 맞춘 뒤 필지를 그린다(animate:false).
     // 그러지 않으면 수천 개 필지가 낮은 줌에서 어두운 덩어리로 렌더된 뒤 줌인에 확대돼
     // "커다란 검은 네모"처럼 깜빡인다.
