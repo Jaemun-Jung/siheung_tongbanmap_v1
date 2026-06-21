@@ -365,7 +365,7 @@ function renderDongList(dongs){
   ph.value=''; ph.textContent='행정동을 선택하세요 ▾'; sel.appendChild(ph);
   [...dongs].sort((a,b)=> dongRank(a.dong)-dongRank(b.dong) || a.dong.localeCompare(b.dong))
     .forEach(d=>{ const o=document.createElement('option');
-      o.value=d.code; o.textContent=`${d.dong} (${d.n_tong}통)`; o.dataset.dong=d.dong; sel.appendChild(o); });
+      o.value=d.code; o.textContent=d.dong; o.dataset.dong=d.dong; sel.appendChild(o); });
   sel.onchange = ()=>{ const o=sel.selectedOptions[0]; if(o && o.dataset.dong) loadDong(o.value, o.dataset.dong); };
 }
 
