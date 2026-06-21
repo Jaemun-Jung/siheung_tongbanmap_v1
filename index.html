@@ -366,7 +366,7 @@ function showIssues(code){
   const el=$('issues'), v=issuesData[code]; if(!el) return;
   if(!v){ el.style.display='none'; return; }
   el.style.display='block';
-  let h=`<span class="big">표 ${v.n_table}통 중 <b>${v.n_drawn}통</b> 표시</span>`;
+  let h=`<span class="big">${v.dong} ${v.n_table}통 중 <b>${v.n_drawn}통</b> 표시</span>`;
   if(v.n_missing>0){
     h+=` <span class="warn">· 미표시 ${v.n_missing}통</span>${helpQ('missing')}`+
        `<details><summary>미표시 통 ${v.n_missing}개 보기</summary><ul>`+
@@ -392,7 +392,7 @@ function showCityIssues(){
   if(T-D>0) warn.push(`미표시 ${T-D}통`);
   if(S>0) warn.push(`멀리 떨어진 필지 ${S}통`);
   if(OM>0) warn.push(`누락 의심 ${OM}필지`);
-  el.innerHTML=`<span class="big">시흥시 표 ${T}통 중 <b>${D}통</b> 표시</span>`+
+  el.innerHTML=`<span class="big">시흥시 ${T}통 중 <b>${D}통</b> 표시</span>`+
     (warn.length?` <span class="warn">· ${warn.join(' · ')}</span>`:'')+
     `<div style="color:#888;margin-top:2px">동을 선택하면 동별 상세(미표시·떨어진 필지·누락)</div>`;
 }
