@@ -119,10 +119,10 @@
     <div class="secbody">
       <label>경계 방식</label>
       <div class="row tight" id="bmode">
-        <button class="b" id="bm-clean">깔끔(도로망)</button>
+        <button class="b" id="bm-clean">통 면(깔끔)</button>
         <button class="b on" id="bm-parcel">별표(필지)</button>
       </div>
-      <div class="hint">깔끔=도로 중심선 경계 · 별표=시행규칙 지번 그대로(법적)</div>
+      <div class="hint">통 면=통을 합친 깔끔한 면(상황판·출력용) · 별표=지번 단위 상세. 둘 다 시행규칙 통 그대로(정확).</div>
 
       <label>배경지도</label>
       <div class="row tight" id="bases">
@@ -266,7 +266,7 @@ let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,labels:
 let ov={mask:null,tong:null,admin:null,city:null,labels:null};
 let allAdminCache=null;   // out/overview/all_admin.geojson 캐시(이웃 동 클릭용)
 let curTongData=null;     // 필지기반 통 GeoJSON
-let curParcelsData=null, curRoadblockData=null, curLineData=null;
+let curParcelsData=null, curLineData=null;
 let boundaryMode='parcel'; // 'parcel'(별표·필지, 기본) | 'clean'(도로망 깔끔)
 const $ = id => document.getElementById(id);
 const setStatus = s => $('status').textContent = s||'';
@@ -382,10 +382,9 @@ function loadDong(code, dong, afterLoad){
   Promise.all([
     fetch(`${base}_parcels.geojson`).then(r=>r.json()),
     fetch(`${base}_tong.geojson`).then(r=>r.json()),
-    fetch(`${base}_tong_roadblock.geojson`).then(r=>r.ok?r.json():null).catch(()=>null),
     fetch(`${base}_admin.geojson`).then(r=>r.json()),
-  ]).then(([parcels,tong,roadblock,admin])=>{
-    curParcelsData=parcels; curTongData=tong; curRoadblockData=roadblock;
+  ]).then(([parcels,tong,admin])=>{
+    curParcelsData=parcels; curTongData=tong;
     cur.admin = L.geoJSON(admin,{style:{color:'#111',weight:4,fill:false,opacity:.85}}).addTo(map);
     renderBoundary();
     loadNeighbors(code);
@@ -400,12 +399,12 @@ function loadDong(code, dong, afterLoad){
 // 경계 레이어(채움/외곽선/라벨)를 현재 모드(도로망 vs 필지)로 그림
 function renderBoundary(){
   ['parcels','tong','labels'].forEach(k=>{ if(cur[k]){ map.removeLayer(cur[k]); cur[k]=null; } });
-  const clean = boundaryMode==='clean' && curRoadblockData;
+  const clean = boundaryMode==='clean';          // 통 면(dissolve): 통을 하나로 합친 깔끔한 면
   const mfeats = manualFeatures();               // 수동 보정 통(검토중) → Feature[]
   let fillFeats, lineFeats;
   if(clean){
-    // 그린 통이 겹치는 기존 통을 깎아내고(경계 후퇴), 새 통을 위에 추가
-    const carved = carveBase(curRoadblockData.features, mfeats);
+    // 통 단위 dissolve 면 = 별표 통 그대로(정확) + 필지선 없음(깔끔). 그린 통이 겹치면 깎아냄.
+    const carved = carveBase(curTongData.features, mfeats);
     fillFeats = carved.concat(mfeats); lineFeats = fillFeats;
   } else {
     // 별표·필지(법적) 뷰: 법정 필지는 깎지 않고 검토중 통만 위에 표시

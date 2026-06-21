@@ -54,9 +54,8 @@ def scalebar(ax, x0, y0, length_m):
 
 def render(code, dong, palette, paper, orient, boundary, select, dpi, date, overrides,
            line_w, fill_a):
-    src = f"out/{code}/{dong}_tong_roadblock.geojson" if boundary == "clean" else f"out/{code}/{dong}_tong.geojson"
-    if not os.path.exists(src):
-        src = f"out/{code}/{dong}_tong.geojson"
+    # 통 단위 dissolve 면(_tong.geojson) — 시행규칙 별표 통 그대로, 개별 필지선 없이 깔끔(상황판·대형 출력용)
+    src = f"out/{code}/{dong}_tong.geojson"
     tong = gpd.read_file(src).to_crs("EPSG:5186")
     admin = gpd.read_file(f"out/{code}/{dong}_admin.geojson").to_crs("EPSG:5186")
     w_mm, h_mm = PAPER.get(paper, PAPER["A4"])
@@ -83,7 +82,7 @@ def render(code, dong, palette, paper, orient, boundary, select, dpi, date, over
 
     # 제목 / 작성일
     fig.text(0.04, 0.955, f"시흥시 {dong} 통·반 경계도", fontsize=20, fontweight="bold")
-    sub = "도로 중심선 기준 경계(깔끔)" if boundary == "clean" else "별표 지번 기준 경계(법적)"
+    sub = "통 단위 경계(시행규칙 별표 기준)"
     fig.text(0.04, 0.925, sub, fontsize=11, color="#555")
     fig.text(0.97, 0.955, f"작성일 {date}", fontsize=10, color="#555", ha="right")
     fig.text(0.97, 0.935, "자료: 시행규칙 별표 + 연속지적도 + OSM", fontsize=8, color="#888", ha="right")
