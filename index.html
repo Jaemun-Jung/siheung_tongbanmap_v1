@@ -364,6 +364,18 @@ $('dong-search').addEventListener('input', e=>{
   const q=e.target.value.trim();
   [...$('dong-select').options].forEach(o=>{ o.hidden = q && !o.dataset.dong.includes(q); });
 });
+// 동 이름 검색 후 엔터 → 일치 동으로 바로 이동(정확>접두>부분 일치)
+$('dong-search').addEventListener('keydown', e=>{
+  if(e.key!=='Enter') return;
+  e.preventDefault();
+  const q=e.target.value.trim(); if(!q) return;
+  const opts=[...$('dong-select').options];
+  const hit = opts.find(o=>o.dataset.dong===q)
+           || opts.find(o=>o.dataset.dong.startsWith(q))
+           || opts.find(o=>o.dataset.dong.includes(q));
+  if(hit){ $('dong-select').value=hit.value; loadDong(hit.value, hit.dataset.dong); }
+  else setStatus(`"${q}" 동을 찾지 못했습니다.`);
+});
 
 // ---------- 레이어 정리 ----------
 function clearGroup(g){ for(const k in g){ if(g[k]){ map.removeLayer(g[k]); g[k]=null; } } }
