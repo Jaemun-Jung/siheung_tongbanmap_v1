@@ -64,7 +64,8 @@
 9,0,대야동,685-5,road_match
 10,0,대야동,685-4,road_match
 7,0,대야동,642-277,road_match
-3,0,대야동,689,road_match
+12,0,대야동,689,road_split
+3,0,대야동,689,road_split
 39,0,대야동,687,road_split
 10,0,대야동,687,road_split
 11,0,대야동,679-1,road_match
@@ -136,7 +137,8 @@
 10,0,대야동,688-3,road_match
 10,0,대야동,688-2,road_match
 10,0,대야동,688-1,road_match
-10,0,대야동,688,road_match
+10,0,대야동,688,road_split
+12,0,대야동,688,road_split
 39,0,대야동,687-6,road_match
 39,0,대야동,687-2,road_match
 39,0,대야동,687-1,road_match
@@ -146,6 +148,7 @@
 10,0,대야동,685,road_match
 10,0,대야동,659-1,road_split
 3,0,대야동,659-1,road_split
+12,0,대야동,659-1,road_split
 1,0,대야동,644,road_split
 10,0,대야동,644,road_split
 39,0,대야동,644,road_split
@@ -416,7 +419,6 @@
 1,0,대야동,147-4,road_match
 1,0,대야동,147-3,road_match
 56,0,대야동,145-4,road_match
-56,0,대야동,138-25,road_match
 1,0,대야동,138-24,road_match
 1,0,대야동,138-22,road_match
 56,0,대야동,138-18,road_match

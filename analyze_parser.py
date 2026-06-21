@@ -81,13 +81,13 @@ def expand_new(csv_path, valid_beop):
     for r in rows:
         tong, ban = r['통'], r['반']
         raw = normalize(r[addr])
+        raw = re.sub(r'\([^)]*\)', ' Ⓐ ', raw)                   # 괄호(내부 콤마 포함)→아파트 표시
         cur = None
         for seg in raw.split(','):
             seg = seg.strip()
             if not seg:
                 continue
-            had_apt = bool(re.search(r'\(', seg)) or bool(APT_WORD.search(seg))
-            seg = re.sub(r'\([^)]*\)', '', seg).strip()         # 아파트명 괄호 제거
+            had_apt = bool(APT_WORD.search(seg))                 # 세그먼트 단위 아파트 여부
             m = BEOP.match(seg)
             if m and m.group(1) in valid_beop:                  # 알려진 법정동만 전환
                 cur = m.group(1); body = m.group(2).strip()
@@ -97,8 +97,8 @@ def expand_new(csv_path, valid_beop):
                 failed.append((tong, ban, seg)); continue
             got = False
             for word in body.split():                            # 지번은 공백으로도 구분됨
-                word = word.strip(',.')
-                if not SPEC_FULL.match(word):                    # 아파트명 등 비지번 단어 → 스킵
+                word = word.split('(')[0].strip(',.')
+                if not word or not SPEC_FULL.match(word):         # 아파트명 등 비지번 단어 → 스킵
                     continue
                 san = word.startswith('산')
                 core = (word[1:] if san else word).strip('-~ㆍ')

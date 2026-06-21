@@ -163,13 +163,16 @@ def expand_table(csv_path, valid_beop):
         except (ValueError, KeyError, TypeError):
             continue
         raw = normalize(r['관할구역'])
+        # 괄호(아파트명·호수, 내부에 콤마 포함: '1740-3(아주5차 101호~1701호, 102호~1702호)')를
+        # 콤마 분리 전에 ' Ⓐ ' 표시로 치환 → 지번이 안 깨지고, 아파트 여부는 세그먼트 단위로 유지
+        # (아파트와 같은 행의 정상 지번을 아파트로 오인하지 않도록).
+        raw = re.sub(r'\([^)]*\)', ' Ⓐ ', raw)
         cur = None
         for seg in raw.split(','):                              # 콤마/법정동 단위 세그먼트
             seg = seg.strip()
             if not seg:
                 continue
-            had_apt = ('(' in seg) or bool(APT_WORD.search(seg))
-            seg = re.sub(r'\([^)]*\)', '', seg).strip()         # 아파트명 괄호 제거(지번은 보존)
+            had_apt = bool(APT_WORD.search(seg))               # 세그먼트 단위 아파트 여부
             m = BEOP_RE.match(seg)
             if m and m.group(1) in valid_beop:                  # 알려진 법정동만 전환
                 cur = m.group(1); body = m.group(2).strip()
@@ -179,8 +182,8 @@ def expand_table(csv_path, valid_beop):
                 failed.append((tong, ban, '', seg)); continue
             got = False
             for word in body.split():                          # 지번은 공백으로도 구분됨
-                word = word.strip(',.')
-                if not SPEC_FULL.match(word):                  # 아파트명 등 비지번 단어 → 스킵
+                word = word.split('(')[0].strip(',.')          # 미닫힌 괄호 잔여 제거
+                if not word or not SPEC_FULL.match(word):       # 아파트명 등 비지번 단어 → 스킵
                     continue
                 san = word.startswith('산')
                 core = (word[1:] if san else word).strip('-~ㆍ')

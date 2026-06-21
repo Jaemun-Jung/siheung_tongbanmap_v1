@@ -356,6 +356,7 @@
 5,0,조남동,175-13,road_match
 5,0,조남동,177-2,road_match
 5,0,조남동,179-12,road_match
+5,0,조남동,179-15,road_match
 17,0,조남동,190-1,road_match
 17,0,조남동,190-8,road_match
 17,0,조남동,191,road_match
@@ -509,10 +510,12 @@
 7,0,목감동,242-33,road_match
 7,0,목감동,242-23,road_split
 16,0,목감동,242-23,road_split
-7,0,목감동,242-22,road_match
+7,0,목감동,242-22,road_split
+16,0,목감동,242-22,road_split
 7,0,목감동,242-17,road_match
 16,0,목감동,242-16,road_match
-7,0,목감동,242-13,road_match
+16,0,목감동,242-14,road_match
+7,0,목감동,242-13,road_split
 7,0,목감동,242-12,road_match
 7,0,목감동,241-8,road_match
 20,0,목감동,241-6,road_match
@@ -638,8 +641,8 @@
 10,0,목감동,산62-1,road_match
 10,0,목감동,405-3,road_split
 31,0,목감동,405-3,road_split
-20,0,목감동,392-7,road_split
 16,0,목감동,392-7,road_split
+20,0,목감동,392-7,road_split
 13,0,목감동,392-7,road_split
 10,0,목감동,392-7,road_split
 10,0,목감동,392,road_match
@@ -680,7 +683,7 @@
 10,0,목감동,산62,road_match
 10,0,목감동,산63-22,road_match
 12,0,목감동,358-6,road_match
-12,0,목감동,2-1,road_match
+12,0,목감동,3-1,road_match
 12,0,목감동,3-3,road_match
 12,0,목감동,27-11,road_match
 12,0,목감동,27-20,road_match

@@ -192,7 +192,8 @@
 11,0,거모동,1825,road_split
 27,0,거모동,1824,road_split
 11,0,거모동,1824,road_split
-13,0,거모동,1823,road_match
+18,0,거모동,1823,road_split
+13,0,거모동,1823,road_split
 10,0,거모동,1822,road_match
 1,0,거모동,1821,road_split
 27,0,거모동,1821,road_split
@@ -219,10 +220,12 @@
 26,0,거모동,1811,road_split
 2,0,거모동,1811,road_split
 27,0,거모동,1811,road_split
+18,0,거모동,1811,road_split
 13,0,거모동,1811,road_split
 1,0,거모동,1811,road_split
 10,0,거모동,1810,road_split
 19,0,거모동,1810,road_split
+18,0,거모동,1810,road_split
 16,0,거모동,1810,road_split
 13,0,거모동,1810,road_split
 27,0,거모동,1810,road_split

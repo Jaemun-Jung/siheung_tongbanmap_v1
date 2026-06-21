@@ -158,6 +158,7 @@
 22,0,신천동,912,road_split
 24,0,신천동,912,road_split
 15,0,신천동,910,road_split
+14,0,신천동,910,road_split
 11,0,신천동,910,road_split
 13,0,신천동,909,road_split
 11,0,신천동,909,road_split
@@ -213,6 +214,7 @@
 22,0,신천동,843-30,road_match
 22,0,신천동,843-29,road_match
 13,0,신천동,839-15,road_match
+14,0,신천동,837-2,road_match
 15,0,신천동,836-5,road_match
 14,0,신천동,833-10,road_match
 21,0,신천동,824-28,road_match
@@ -316,6 +318,7 @@
 27,0,신천동,1-47,road_match
 28,0,신천동,26-5,road_match
 3,0,신천동,35-33,road_match
+32,0,신천동,37-7,road_match
 23,0,신천동,54-4,road_match
 40,0,신천동,83-50,road_match
 27,0,신천동,83-58,road_match

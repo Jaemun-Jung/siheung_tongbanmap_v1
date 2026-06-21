@@ -9,6 +9,7 @@
 3,0,매화동,139-5,road_match
 3,0,매화동,190-5,road_match
 3,0,매화동,190-9,road_match
+3,0,매화동,190-11,road_match
 3,0,매화동,190-15,road_match
 3,0,매화동,192-2,road_match
 3,0,매화동,193-2,road_match
@@ -161,10 +162,17 @@
 15,0,매화동,293-7,road_match
 23,0,매화동,309-2,road_match
 23,0,매화동,310,road_match
-23,0,매화동,313,road_match
+23,0,매화동,313,road_split
+11,0,매화동,313,road_split
 23,0,매화동,313-2,road_match
-23,0,매화동,314-13,road_match
-23,0,매화동,315,road_match
+11,0,매화동,314,road_match
+11,0,매화동,314-10,road_match
+11,0,매화동,314-11,road_match
+11,0,매화동,314-12,road_match
+23,0,매화동,314-13,road_split
+11,0,매화동,314-13,road_split
+23,0,매화동,315,road_split
+11,0,매화동,315,road_split
 2,0,매화동,326-4,road_match
 2,0,매화동,327-3,road_match
 2,0,매화동,330-6,road_match
@@ -178,6 +186,8 @@
 1,0,매화동,338-10,road_match
 1,0,매화동,338-12,road_match
 1,0,매화동,338-14,road_match
+11,0,매화동,341-2,road_match
+11,0,매화동,342-3,road_match
 23,0,매화동,344-2,road_match
 1,0,매화동,357-2,road_match
 1,0,매화동,357-4,road_match
@@ -232,6 +242,7 @@
 18,0,매화동,823-6,road_split
 1,0,매화동,823-6,road_split
 23,0,매화동,823-6,road_split
+11,0,매화동,823-6,road_split
 2,0,매화동,823-6,road_split
 15,0,매화동,823-6,road_split
 20,0,매화동,823-6,road_split
