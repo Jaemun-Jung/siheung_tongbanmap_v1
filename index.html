@@ -405,9 +405,12 @@ function renderDongList(dongs){
 // 현재 동의 통 목록 → 통 드롭다운 채움(동 선택 시)
 function populateTongSelect(){
   const sel=$('tong-select'); if(!sel) return;
-  const tongs=[...new Set((curTongData&&curTongData.features||[]).map(f=>+f.properties.통))].sort((a,b)=>a-b);
+  const base=(curTongData&&curTongData.features||[]).map(f=>+f.properties.통);
+  const man=(manualData[curCode]||[]).map(m=>+m.통);            // 수동으로 그린 통(검토중)
+  const tongs=[...new Set(base.concat(man))].sort((a,b)=>a-b);
   sel.innerHTML='<option value="">통 선택…(클릭 시 이동)</option>'+
-    tongs.map(t=>`<option value="${t}">${t}통</option>`).join('');
+    tongs.map(t=>{ const onlyMan = man.includes(t) && !base.includes(t);
+      return `<option value="${t}">${t}통${onlyMan?' (검토중)':''}</option>`; }).join('');
   sel.style.display = tongs.length ? 'block' : 'none';
 }
 // 통 선택 → 강조 + 그 통으로 줌
@@ -879,7 +882,7 @@ document.addEventListener('keydown', e=>{
   else if(e.key==='Backspace'){ e.preventDefault(); undoLastVertex(); }
 });
 // 지도(경계 재렌더로 깎기 반영) + 목록 갱신
-function renderManual(){ if(cur.admin) renderBoundary(); renderManualList(); }
+function renderManual(){ if(cur.admin) renderBoundary(); renderManualList(); populateTongSelect(); }
 function renderManualList(){
   const list = manualData[curCode] || [];
   $('manual-list').innerHTML = list.map((m,i)=>
