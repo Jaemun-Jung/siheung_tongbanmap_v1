@@ -616,7 +616,14 @@ function showOverview(){
     // ① 시흥시 외곽선(굵은 먹색) — 주변 시와 구분(스포트라이트와 함께). 데이터 색과 안 충돌
     ov.city = L.geoJSON(city,{interactive:false,
       style:{color:'#1f2937',weight:4,fill:false,opacity:.95}}).addTo(map);
-    map.fitBounds(ov.city.getBounds(),{padding:[20,20]});
+    // 전체보기 중심: 거북섬에서 서쪽으로 길게 뻗은 대부황금로(도로 꼬리)는 제외하고
+    // 본토+거북섬 개발지(경도≥WEST_CAP)만으로 bounds 계산 → 본토가 가운데로 배치
+    const WEST_CAP = 126.665;                     // 본토 최서단 126.682, 거북섬 개발지 126.67~ (도로 꼬리 126.61~66 제외)
+    const core = L.latLngBounds([]);
+    (admin.features||[]).forEach(f=>{ const g=f.geometry;
+      const polys = g.type==='Polygon'?[g.coordinates]:g.coordinates;
+      polys.forEach(p=>p.forEach(ring=>ring.forEach(c=>{ if(c[0]>=WEST_CAP) core.extend([c[1],c[0]]); }))); });
+    map.fitBounds(core.isValid()?core:ov.city.getBounds(),{padding:[20,20]});
     buildOverviewLabels();                       // fitBounds 이후 픽셀로 분산 배치
     $('res').innerHTML = '';                      // 첫 화면 안내는 패널 헤더에만(중복 제거)
     setStatus(''); showCityIssues();
