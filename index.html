@@ -451,8 +451,9 @@ function showIssues(code){
 $('issues').addEventListener('click', e=>{
   const li=e.target.closest('.misshit'); if(!li) return;
   const lat=+li.dataset.lat, lon=+li.dataset.lon, t=li.dataset.t;
-  map.setView([lat,lon], 18, {animate:true});
-  dropSearchMarker([lat,lon], `<b>${t}통</b> <small>(지도 미표시)</small><br><small>아파트를 동별로 나눈 통 — 정확한 통·반은 검색</small>`);
+  map.setView([lat,lon], 18, {animate:true});   // 해당 통을 화면 정중앙에
+  // autoPan:false → 팝업이 화면을 밀지 않아 핀이 가운데 그대로
+  dropSearchMarker([lat,lon], `<b>${t}통</b> <small>(지도 미표시)</small><br><small>아파트를 동별로 나눈 통이에요.<br>단지·동으로 검색하면 통·반이 나옵니다.</small>`, {autoPan:false});
 });
 function showCityIssues(){
   const el=$('issues'); if(!el) return;
@@ -866,11 +867,11 @@ function searchJibun(v){
 // 검색 결과 위치 핀(마커) — 어디인지 한눈에 보이게
 let searchMarker = null;
 function clearSearchMarker(){ if(searchMarker){ map.removeLayer(searchMarker); searchMarker=null; } }
-function dropSearchMarker(latlng, html){
+function dropSearchMarker(latlng, html, popOpts){
   clearSearchMarker();
   searchMarker = L.marker(latlng, { zIndexOffset:3000, keyboard:false,
     icon: L.divIcon({className:'', html:'<div class="search-pin"></div>', iconSize:[22,22], iconAnchor:[11,11]}) }).addTo(map);
-  if(html) searchMarker.bindPopup(html, {offset:[0,-8]}).openPopup();
+  if(html) searchMarker.bindPopup(html, Object.assign({offset:[0,-8]}, popOpts||{})).openPopup();
 }
 function navToHit(hit, dongName, jibun, label){
   const [code,dong,t,b]=hit;
