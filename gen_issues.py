@@ -69,7 +69,7 @@ def main():
             s = info.get("사유", "")
             if t in apt_tongs:
                 info["유형"] = "아파트"
-                info["사유"] = "아파트 동별 분할 — 검색으로 통·반 확인"
+                info["사유"] = "아파트 동별 분할 — 아파트명+동 검색"
             elif "충돌" in s or "흡수" in s:
                 info["사유"] = "인접 통에 포함됨"
             else:

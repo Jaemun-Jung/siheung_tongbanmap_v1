@@ -453,7 +453,7 @@ $('issues').addEventListener('click', e=>{
   const lat=+li.dataset.lat, lon=+li.dataset.lon, t=li.dataset.t;
   map.setView([lat,lon], 18, {animate:true});   // 해당 통을 화면 정중앙에
   // autoPan:false → 팝업이 화면을 밀지 않아 핀이 가운데 그대로
-  dropSearchMarker([lat,lon], `<b>${t}통</b> <small>(지도 미표시)</small><br><small>아파트를 동별로 나눈 통이에요.<br>단지·동으로 검색하면 통·반이 나옵니다.</small>`, {autoPan:false});
+  dropSearchMarker([lat,lon], `<b>${t}통</b> <small>(지도 미표시)</small><br><small>아파트를 동별로 나눈 통이에요.<br>아파트 이름+동으로 검색하면 통·반이 나옵니다.</small>`, {autoPan:false});
 });
 function showCityIssues(){
   const el=$('issues'); if(!el) return;
