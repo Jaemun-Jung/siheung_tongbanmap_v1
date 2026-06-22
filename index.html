@@ -437,7 +437,7 @@ function showIssues(code){
     h+=` <span class="warn">· 미표시 ${v.n_missing}통</span>${helpQ('missing')}`+
        `<details><summary>미표시 통 ${v.n_missing}개 보기</summary><ul>`+
        v.missing.map(m=> m.loc
-          ? `<li class="misshit" data-lat="${m.loc[0]}" data-lon="${m.loc[1]}" data-t="${m.통}" title="클릭하면 위치로 이동">${m.통}통 — ${m.사유} <span class="goto">↗</span></li>`
+          ? `<li class="misshit" data-lat="${m.loc[0]}" data-lon="${m.loc[1]}" data-t="${m.통}" ${m.approx?'data-approx="1"':''} title="클릭하면 위치로 이동">${m.통}통 — ${m.사유} <span class="goto">${m.approx?'≈':'↗'}</span></li>`
           : `<li>${m.통}통 — ${m.사유}</li>`).join('')+`</ul></details>`;
   }
   // 담당자 데이터 점검용(멀리 떨어진 필지·누락 대지·충돌·미배정) → 접이식으로 묶어 일반 화면에선 숨김
@@ -454,10 +454,15 @@ function showIssues(code){
 // 미표시 통 클릭 → 그 위치로 이동 + 핀(위임: #issues는 유지되고 내용만 갱신되므로 한 번만 등록)
 $('issues').addEventListener('click', e=>{
   const li=e.target.closest('.misshit'); if(!li) return;
-  const lat=+li.dataset.lat, lon=+li.dataset.lon, t=li.dataset.t;
-  map.setView([lat,lon], 18, {animate:true});   // 해당 통을 화면 정중앙에
+  const lat=+li.dataset.lat, lon=+li.dataset.lon, t=li.dataset.t, approx=li.dataset.approx;
   // autoPan:false → 팝업이 화면을 밀지 않아 핀이 가운데 그대로
-  dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>아파트를 동별로 나눈 통이에요.<br>• <b>아파트 이름+동</b>으로 검색하면 통·반이 나와요.<br>• 경계를 직접 그리려면 왼쪽 <b>‘빠진 통 그리기’</b>를 쓰세요.</div>`, {autoPan:false});
+  if(approx){   // 정확 위치 미상(은계 블록·산업단지·메모 등) → 동 영역으로
+    map.setView([lat,lon], 14, {animate:true});
+    dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>이 통의 정확한 위치는 자동으로 못 잡았어요.<br>대략 <b>이 동(洞) 안</b>에 있습니다. 별표의 단지·블록명으로 확인하세요.</div>`, {autoPan:false});
+  } else {      // 정확 위치 — 화면 정중앙으로
+    map.setView([lat,lon], 18, {animate:true});
+    dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>아파트를 동별로 나눈 통이에요.<br>• <b>아파트 이름+동</b>으로 검색하면 통·반이 나와요.<br>• 경계를 직접 그리려면 왼쪽 <b>‘빠진 통 그리기’</b>를 쓰세요.</div>`, {autoPan:false});
+  }
 });
 function showCityIssues(){
   const el=$('issues'); if(!el) return;

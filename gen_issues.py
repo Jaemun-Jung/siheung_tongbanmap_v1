@@ -18,10 +18,10 @@ def aptname(raw):
     """별표 관할구역에서 아파트 단지명만 추출(법정동·지번·동번호·호 제거)."""
     s = re.sub(r"[()（）]", " ", str(raw))
     s = re.sub(r"^[가-힣]{2,4}[동리]\s*", "", s)
-    s = re.sub(r"산?\d[\d\-~ㆍ]*", "", s)
-    s = re.sub(r"\d+동.*$", "", s)
+    s = re.sub(r"\d+동.*$", "", s)              # 동번호 이후 먼저(지번 제거가 동번호를 먹지 않게)
     s = re.sub(r"\d+호.*$", "", s)
-    s = re.sub(r"상가|아파트|유치원", "", s)
+    s = re.sub(r"산?\d[\d\-~ㆍ]*", "", s)        # 지번
+    s = re.sub(r"상가|아파트|유치원|,", "", s)
     return s.strip()
 
 def nrows(path):
@@ -60,7 +60,7 @@ def main():
             ji = (m.group(1), m.group(2)) if (m and m.group(1) in beops) else None
             if t not in tong_jibun and ji:
                 tong_jibun[t] = ji
-            cl = aptname(raw)
+            cl = re.sub(r"[\s·~（）]|시흥장현|차$", "", aptname(raw))   # 단지명 정규화(공백·시흥장현·차 제거)
             if t not in tong_cluster and cl:
                 tong_cluster[t] = cl
             if ji and cl and cl not in cluster_jibun:
@@ -68,12 +68,23 @@ def main():
         drawn = set(int(t) for t in gpd.read_file(tongp)["통"].unique())
         # 필지 중심점 (법정동,지번) → [lat,lon] (미표시 통 클릭 이동용)
         par = gpd.read_file(f"{OUT}/{code}/{dong}_parcels.geojson")
-        cen = {}
+        cen = {}; cen_bon = {}
         for _, pr in par.iterrows():
             key = (str(pr.get("법정동")), str(pr.get("지번")))
-            if key not in cen and pr.geometry is not None and not pr.geometry.is_empty:
-                c = pr.geometry.representative_point()
-                cen[key] = [round(c.y, 7), round(c.x, 7)]
+            if pr.geometry is None or pr.geometry.is_empty:
+                continue
+            c = pr.geometry.representative_point(); ll = [round(c.y, 7), round(c.x, 7)]
+            if key not in cen:
+                cen[key] = ll
+            bk = (key[0], key[1].split("-")[0])          # (법정동,본번) — 부번만 있는 지번 폴백용
+            if bk not in cen_bon:
+                cen_bon[bk] = ll
+        # 동 중심점(정확 위치 못 잡을 때 동 영역으로라도 이동)
+        try:
+            adm = gpd.read_file(f"{OUT}/{code}/{dong}_admin.geojson").geometry.union_all().representative_point()
+            dong_center = [round(adm.y, 7), round(adm.x, 7)]
+        except Exception:
+            dong_center = None
         # 미표시 통 + 사유(짧게) + 위치
         reasons = {}
         mr = f"{OUT}/{code}/report_missing_tong.csv"
@@ -91,10 +102,14 @@ def main():
                 info["사유"] = "인접 통에 포함됨"
             else:
                 info["사유"] = "지번 확인 필요"
-            # 위치: override 지번 → 별표 첫 지번 → 같은 단지(아파트명)의 지번
+            # 위치: override → 별표 첫 지번 → 같은 단지 → (부번이면)본번 → (못 잡으면)동 중심(approx)
             key = ov.get(code, {}).get(t) or tong_jibun.get(t) or cluster_jibun.get(tong_cluster.get(t, ""))
             if key and tuple(key) in cen:
                 info["loc"] = cen[tuple(key)]
+            elif key and (key[0], key[1].split("-")[0]) in cen_bon:
+                info["loc"] = cen_bon[(key[0], key[1].split("-")[0])]
+            elif dong_center:
+                info["loc"] = dong_center; info["approx"] = True
             missing.append({"통": t, **info})
         issues[code] = {
             "dong": dong,
