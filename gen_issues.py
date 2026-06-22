@@ -14,6 +14,16 @@ OUT = "out"
 APT_BUILDING = re.compile(r"아파트|빌라|연립|단지|타운|마을|Ⓐ|\d+동|\d+호|\(")
 JIBRE = re.compile(r"([가-힣]{2,4}[동리])\s*(산?\d+(?:-\d+)?)")
 
+def aptname(raw):
+    """별표 관할구역에서 아파트 단지명만 추출(법정동·지번·동번호·호 제거)."""
+    s = re.sub(r"[()（）]", " ", str(raw))
+    s = re.sub(r"^[가-힣]{2,4}[동리]\s*", "", s)
+    s = re.sub(r"산?\d[\d\-~ㆍ]*", "", s)
+    s = re.sub(r"\d+동.*$", "", s)
+    s = re.sub(r"\d+호.*$", "", s)
+    s = re.sub(r"상가|아파트|유치원", "", s)
+    return s.strip()
+
 def nrows(path):
     if not os.path.exists(path):
         return 0
@@ -39,15 +49,22 @@ def main():
         table = set()
         apt_tongs = set()                       # 별표에 아파트 동/호 표기가 있는 통
         tong_jibun = {}                          # 통 → 첫 (법정동,지번) (위치 잡기용)
+        tong_cluster = {}                        # 통 → 아파트명(단지) — 같은 단지 통끼리 위치 공유
+        cluster_jibun = {}                       # 아파트명 → (법정동,지번)
         for r in csv.DictReader(open(csvp, encoding="utf-8-sig")):
             t = int(r["통"]); table.add(t)
             raw = str(r.get("관할구역", ""))
             if APT_BUILDING.search(raw):
                 apt_tongs.add(t)
-            if t not in tong_jibun:
-                m = JIBRE.search(raw.replace("～", "~"))
-                if m and m.group(1) in beops:
-                    tong_jibun[t] = (m.group(1), m.group(2))
+            m = JIBRE.search(raw.replace("～", "~"))
+            ji = (m.group(1), m.group(2)) if (m and m.group(1) in beops) else None
+            if t not in tong_jibun and ji:
+                tong_jibun[t] = ji
+            cl = aptname(raw)
+            if t not in tong_cluster and cl:
+                tong_cluster[t] = cl
+            if ji and cl and cl not in cluster_jibun:
+                cluster_jibun[cl] = ji
         drawn = set(int(t) for t in gpd.read_file(tongp)["통"].unique())
         # 필지 중심점 (법정동,지번) → [lat,lon] (미표시 통 클릭 이동용)
         par = gpd.read_file(f"{OUT}/{code}/{dong}_parcels.geojson")
@@ -74,8 +91,8 @@ def main():
                 info["사유"] = "인접 통에 포함됨"
             else:
                 info["사유"] = "지번 확인 필요"
-            # 위치: override 지번 우선, 없으면 별표 첫 지번
-            key = ov.get(code, {}).get(t) or tong_jibun.get(t)
+            # 위치: override 지번 → 별표 첫 지번 → 같은 단지(아파트명)의 지번
+            key = ov.get(code, {}).get(t) or tong_jibun.get(t) or cluster_jibun.get(tong_cluster.get(t, ""))
             if key and tuple(key) in cen:
                 info["loc"] = cen[tuple(key)]
             missing.append({"통": t, **info})
