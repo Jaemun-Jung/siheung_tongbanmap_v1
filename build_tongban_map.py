@@ -454,7 +454,7 @@ def main():
                 ot = int(o["통"]); ob = int(o.get("반") or 0)
             except (ValueError, KeyError):
                 continue
-            recs.append((ot, ob, o["법정동"].strip(), o["지번"].strip(), False))
+            recs.append((ot, ob, o["법정동"].strip(), o["지번"].strip(), True))  # 아파트로 등재 → 범위 항목 이김
         if len(recs) > n0:
             print(f"   + 아파트 지번 보강(override) {len(recs)-n0}건")
     tdf = pd.DataFrame(recs, columns=["통", "반", "법정동", "지번", "아파트"])
