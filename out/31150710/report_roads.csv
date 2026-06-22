@@ -1,7 +1,8 @@
 ﻿통,반,_dong,_jib,_fill
 2,0,장현동,564,road_match
 36,0,장현동,571,road_match
-36,0,장현동,579,road_match
+36,0,장현동,579,road_split
+23,0,장현동,579,road_split
 42,0,장현동,586-2,road_match
 42,0,장현동,587,road_match
 24,0,장현동,592,road_match
@@ -17,6 +18,7 @@
 31,0,장현동,623,road_match
 31,0,장현동,650,road_match
 31,0,장현동,652,road_match
+23,0,장현동,654,road_match
 1,0,장현동,3-5,road_match
 2,0,장현동,4-2,road_match
 2,0,장현동,4-8,road_match
@@ -160,8 +162,10 @@
 2,0,장곡동,908,road_match
 44,0,장곡동,915,road_match
 1,0,장곡동,918,road_split
+21,0,장곡동,918,road_split
 44,0,장곡동,918,road_split
-38,0,장곡동,923,road_match
+38,0,장곡동,923,road_split
+21,0,장곡동,923,road_split
 38,0,장곡동,926,road_match
 38,0,장곡동,930,road_match
 40,0,장곡동,931,road_split
