@@ -99,6 +99,9 @@
    font-weight:800;font-size:16px;color:#111;white-space:nowrap;letter-spacing:.3px;
    text-shadow:0 0 3px #fff,0 0 3px #fff,0 0 3px #fff,0 0 4px #fff,0 0 5px #fff,0 1px 2px #fff}
  .leaflet-popup-content{font-size:13px}
+ .leaflet-popup-content .msinfo{font-size:14.5px;line-height:1.7}
+ .leaflet-popup-content .msinfo .t{font-size:18px;color:var(--blue)}
+ .leaflet-popup-content .msinfo .d{color:#999;font-size:12px}
  .curdong{font-size:16px;font-weight:700;color:var(--blue);margin:2px 0 8px}
  #dong-badge{position:absolute;z-index:1000;top:10px;left:50%;transform:translateX(-50%);
    background:var(--blue);color:#fff;font-weight:800;font-size:22px;padding:9px 26px;letter-spacing:.5px;
@@ -454,7 +457,7 @@ $('issues').addEventListener('click', e=>{
   const lat=+li.dataset.lat, lon=+li.dataset.lon, t=li.dataset.t;
   map.setView([lat,lon], 18, {animate:true});   // 해당 통을 화면 정중앙에
   // autoPan:false → 팝업이 화면을 밀지 않아 핀이 가운데 그대로
-  dropSearchMarker([lat,lon], `<b>${t}통</b> <small>(지도 미표시)</small><br><small>아파트를 동별로 나눈 통이에요.<br>아파트 이름+동으로 검색하면 통·반이 나옵니다.</small>`, {autoPan:false});
+  dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>아파트를 동별로 나눈 통이에요.<br><b>아파트 이름+동</b>으로 검색하면 통·반이 나옵니다.</div>`, {autoPan:false});
 });
 function showCityIssues(){
   const el=$('issues'); if(!el) return;
