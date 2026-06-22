@@ -12,6 +12,7 @@ import geopandas as gpd
 OUT = "out"
 # 별표 관할구역에 아파트 동(棟)/호 표기가 있으면 '같은 지번을 동별로 분할'한 통(아파트)
 APT_BUILDING = re.compile(r"아파트|빌라|연립|단지|타운|마을|Ⓐ|\d+동|\d+호|\(")
+JIBRE = re.compile(r"([가-힣]{2,4}[동리])\s*(산?\d+(?:-\d+)?)")
 
 def nrows(path):
     if not os.path.exists(path):
@@ -20,22 +21,43 @@ def nrows(path):
         return max(sum(1 for _ in f) - 1, 0)
 
 def main():
+    # 담당자 확인 override(미표시 통 위치 잡는 데도 사용)
+    ov = {}
+    ovp = "data/apt_jibun_overrides.csv"
+    if os.path.exists(ovp):
+        for o in csv.DictReader(open(ovp, encoding="utf-8-sig")):
+            ov.setdefault(str(o["code"]), {}).setdefault(int(o["통"]), (o["법정동"].strip(), o["지번"].strip()))
     issues = {}
     for cfgp in sorted(glob.glob("data/3*/config.json")):
         cfg = json.load(open(cfgp, encoding="utf-8"))
         code, dong = cfg["admin_code"], cfg["admin_dong"]
+        beops = set(cfg["legal_dongs"].values())
         csvp = f"data/{code}/관할구역.csv"
         tongp = f"{OUT}/{code}/{dong}_tong.geojson"
         if not (os.path.exists(csvp) and os.path.exists(tongp)):
             continue
         table = set()
         apt_tongs = set()                       # 별표에 아파트 동/호 표기가 있는 통
+        tong_jibun = {}                          # 통 → 첫 (법정동,지번) (위치 잡기용)
         for r in csv.DictReader(open(csvp, encoding="utf-8-sig")):
             t = int(r["통"]); table.add(t)
-            if APT_BUILDING.search(str(r.get("관할구역", ""))):
+            raw = str(r.get("관할구역", ""))
+            if APT_BUILDING.search(raw):
                 apt_tongs.add(t)
+            if t not in tong_jibun:
+                m = JIBRE.search(raw.replace("～", "~"))
+                if m and m.group(1) in beops:
+                    tong_jibun[t] = (m.group(1), m.group(2))
         drawn = set(int(t) for t in gpd.read_file(tongp)["통"].unique())
-        # 미표시 통 + 사유
+        # 필지 중심점 (법정동,지번) → [lat,lon] (미표시 통 클릭 이동용)
+        par = gpd.read_file(f"{OUT}/{code}/{dong}_parcels.geojson")
+        cen = {}
+        for _, pr in par.iterrows():
+            key = (str(pr.get("법정동")), str(pr.get("지번")))
+            if key not in cen and pr.geometry is not None and not pr.geometry.is_empty:
+                c = pr.geometry.representative_point()
+                cen[key] = [round(c.y, 7), round(c.x, 7)]
+        # 미표시 통 + 사유(짧게) + 위치
         reasons = {}
         mr = f"{OUT}/{code}/report_missing_tong.csv"
         if os.path.exists(mr):
@@ -43,14 +65,19 @@ def main():
                 reasons[int(r["통"])] = {"유형": r.get("유형", ""), "사유": r.get("사유", "")}
         missing = []
         for t in sorted(table - drawn):
-            info = dict(reasons.get(t, {"유형": "", "사유": "사유 미상"}))
-            # 별표에 아파트 동/호 표기가 있는 통은 지적도로 분리 불가 → 수동 그리기 안내
+            info = dict(reasons.get(t, {"유형": "", "사유": ""}))
+            s = info.get("사유", "")
             if t in apt_tongs:
-                s = info.get("사유", "")
                 info["유형"] = "아파트"
-                info["사유"] = ("같은 지번을 아파트 동(棟)별로 분할 — 수동 그리기 필요"
-                                if ("충돌" in s or "흡수" in s)
-                                else "별표에 지번 없이 아파트 단지·동만 표기 — 수동 그리기 필요")
+                info["사유"] = "아파트 동별 분할 — 검색으로 통·반 확인"
+            elif "충돌" in s or "흡수" in s:
+                info["사유"] = "인접 통에 포함됨"
+            else:
+                info["사유"] = "지번 확인 필요"
+            # 위치: override 지번 우선, 없으면 별표 첫 지번
+            key = ov.get(code, {}).get(t) or tong_jibun.get(t)
+            if key and tuple(key) in cen:
+                info["loc"] = cen[tuple(key)]
             missing.append({"통": t, **info})
         issues[code] = {
             "dong": dong,

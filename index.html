@@ -59,6 +59,9 @@
  .issues summary{cursor:pointer;color:var(--blue)}
  .issues ul{margin:4px 0 0;padding-left:16px}
  .issues li{margin:2px 0;color:#555}
+ .issues li.misshit{cursor:pointer;color:var(--blue)}
+ .issues li.misshit:hover{text-decoration:underline;background:#eef4fb}
+ .issues .goto{opacity:.55;font-size:10px}
  .issues .rev summary{color:#b03a2e;font-weight:600}
  .gr{display:inline-block;padding:0 5px;border-radius:8px;font-size:10px;font-weight:700;color:#fff}
  .g-jibun{background:#c0392b}
@@ -429,7 +432,9 @@ function showIssues(code){
   if(v.n_missing>0){
     h+=` <span class="warn">· 미표시 ${v.n_missing}통</span>${helpQ('missing')}`+
        `<details><summary>미표시 통 ${v.n_missing}개 보기</summary><ul>`+
-       v.missing.map(m=>`<li>${m.통}통 — ${m.사유||m.유형||''}</li>`).join('')+`</ul></details>`;
+       v.missing.map(m=> m.loc
+          ? `<li class="misshit" data-lat="${m.loc[0]}" data-lon="${m.loc[1]}" data-t="${m.통}" title="클릭하면 위치로 이동">${m.통}통 — ${m.사유} <span class="goto">↗</span></li>`
+          : `<li>${m.통}통 — ${m.사유}</li>`).join('')+`</ul></details>`;
   }
   // 담당자 데이터 점검용(멀리 떨어진 필지·누락 대지·충돌·미배정) → 접이식으로 묶어 일반 화면에선 숨김
   const rv=reviewData[code];
@@ -442,6 +447,13 @@ function showIssues(code){
                    `<div class="review-body">${qa}</div></details>`;
   el.innerHTML=h;
 }
+// 미표시 통 클릭 → 그 위치로 이동 + 핀(위임: #issues는 유지되고 내용만 갱신되므로 한 번만 등록)
+$('issues').addEventListener('click', e=>{
+  const li=e.target.closest('.misshit'); if(!li) return;
+  const lat=+li.dataset.lat, lon=+li.dataset.lon, t=li.dataset.t;
+  map.setView([lat,lon], 18, {animate:true});
+  dropSearchMarker([lat,lon], `<b>${t}통</b> <small>(지도 미표시)</small><br><small>아파트를 동별로 나눈 통 — 정확한 통·반은 검색</small>`);
+});
 function showCityIssues(){
   const el=$('issues'); if(!el) return;
   if(!adminMode){ el.style.display='none'; return; }   // 첫 화면 전체현황은 관리자 모드(?admin=1)에서만
