@@ -266,6 +266,7 @@ const bases = {
         {attribution:'© VWorld 지적', maxZoom:19}),
 };
 const map = L.map('map', {zoomControl:false}).setView([37.38, 126.80], 11);
+map.attributionControl.setPrefix(false);   // 'Leaflet 🇺🇦' 접두어 제거(OSM 표기는 라이선스상 유지)
 L.control.zoom({position:'topright'}).addTo(map);
 let curBase = bases.osm.addTo(map);
 document.querySelectorAll('#bases button').forEach(btn=>{
