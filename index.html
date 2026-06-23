@@ -545,9 +545,11 @@ function loadDong(code, dong, afterLoad){
     // "커다란 검은 네모"처럼 깜빡인다.
     map.fitBounds(cur.admin.getBounds(),{padding:[20,20],animate:false});
     renderBoundary(); renderUnassigned();
-    loadNeighbors(code);
+    // 패널(결과·미표시 통)을 먼저 현재 동으로 갱신 — 보조 기능이 실패해도 패널은 항상 맞게
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 통/필지를 클릭하거나 지번을 검색하세요.`;
     setStatus(''); showIssues(code); renderManualList(); populateTongSelect();
+    // 이웃 동 클릭 레이어는 보조 기능 — 실패해도 본체(지도·패널)에 영향 없게 격리
+    try{ loadNeighbors(code); }catch(e){ console.warn('이웃 동 레이어 건너뜀:', e); }
     if(afterLoad) afterLoad();
     if(window.matchMedia('(max-width:640px)').matches) document.body.classList.add('nopanel');  // 모바일: 선택 후 지도 보이게 접기
   }).catch(e=> setStatus(`${dong} 불러오기 실패 — 잠시 후 다시 선택해 주세요. (${e.message||e})`));
