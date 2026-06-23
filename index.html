@@ -323,9 +323,9 @@ const tongStyle = f => { const mn=manualF(f); const on=selected.has(f.properties
     dashArray:(mn||approx(f))?'5 4':null, fill:false, opacity: dim?0.35:0.95 }; };
 
 // ---------- 상태 ----------
-let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,admincase:null,labels:null,unassigned:null}, curParcels=null;
+let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,admincase:null,labels:null,unassigned:null,holes:null}, curParcels=null;
 let ovCenters={};   // 전체지도 동 라벨 중심(code→[lat,lon]) — 폴리곤 centroid(내부 보장)
-let curUnassignedData=null;
+let curUnassignedData=null, curHolesData=null;
 let ov={mask:null,tong:null,admin:null,city:null,labels:null};
 let allAdminCache=null;   // out/overview/all_admin.geojson 캐시(이웃 동 클릭용)
 let curTongData=null;     // 필지기반 통 GeoJSON
@@ -539,8 +539,9 @@ function loadDong(code, dong, afterLoad){
     fetchJSON(`${base}_tong.geojson`),
     fetchJSON(`${base}_admin.geojson`),
     fetchJSON(`${base}_unassigned.geojson`, {tries:2, optional:true}),
-  ]).then(([parcels,tong,admin,unassigned])=>{
-    curParcelsData=parcels; curTongData=tong; curUnassignedData=unassigned;
+    fetchJSON(`${base}_holes.geojson`, {tries:2, optional:true}),
+  ]).then(([parcels,tong,admin,unassigned,holes])=>{
+    curParcelsData=parcels; curTongData=tong; curUnassignedData=unassigned; curHolesData=holes;
     tongCidx={}; (tong.features||[]).forEach(f=>{ if(f.properties.cidx!=null) tongCidx[+f.properties.통]=f.properties.cidx; });
     // 행정동 경계 = 흰색 외곽(halo) 위에 굵은 검정 실선 → 통 경계(가는 회색)와 확실히 구분.
     cur.admincase = L.geoJSON(admin,{style:{color:'#fff',weight:8,fill:false,opacity:.95,lineJoin:'round',lineCap:'round'}}).addTo(map);
@@ -549,7 +550,7 @@ function loadDong(code, dong, afterLoad){
     // 그러지 않으면 수천 개 필지가 낮은 줌에서 어두운 덩어리로 렌더된 뒤 줌인에 확대돼
     // "커다란 검은 네모"처럼 깜빡인다.
     map.fitBounds(cur.admin.getBounds(),{padding:[20,20],animate:false});
-    renderBoundary(); renderUnassigned();
+    renderBoundary(); renderUnassigned(); renderHoles();
     // 패널(결과·미표시 통)을 먼저 현재 동으로 갱신 — 보조 기능이 실패해도 패널은 항상 맞게
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 통/필지를 클릭하거나 지번을 검색하세요.`;
     setStatus(''); showIssues(code); renderManualList(); populateTongSelect();
@@ -764,6 +765,21 @@ function renderUnassigned(){
     onEachFeature:(f,l)=>{ const p=f.properties;
       const txt=`${p.법정동} ${p.지번} <small>(${p.지목||'대'} · <b>통 미배정</b>)</small>`;
       l.bindPopup(txt); l.on('click', e=>{ L.DomEvent.stopPropagation(e); $('res').innerHTML=txt; });
+    }}).addTo(map);
+}
+// '통에 둘러싸인 빈 필지'(구멍) — 미배정 대지 토글과 무관하게 항상 클릭 가능(지번 확인용).
+// 색 강조 없이 옅은 회색, 클릭하면 지번·지목 표시. 별표가 빠뜨렸을 의심 지점.
+function renderHoles(){
+  if(cur.holes){ map.removeLayer(cur.holes); cur.holes=null; }
+  if(!curHolesData || !(curHolesData.features||[]).length) return;
+  cur.holes = L.geoJSON(curHolesData, { renderer: L.canvas(),
+    style:{color:'#8a8a8a',weight:0.8,dashArray:'2 3',fillColor:'#b8b8b8',fillOpacity:.16,opacity:.55},
+    onEachFeature:(f,l)=>{ const p=f.properties;
+      const txt=`${p.법정동} ${p.지번} <small>(${p.지목||'?'})</small><br><b>통에 둘러싸인 빈 필지</b> <small>— 어느 통에도 없음(별표 확인)</small>`;
+      l.bindPopup(txt);
+      l.on('click', e=>{ L.DomEvent.stopPropagation(e); $('res').innerHTML=txt; });
+      l.on('mouseover',()=> l.setStyle({fillOpacity:.42,weight:1.4,color:'#555'}));
+      l.on('mouseout', ()=> l.setStyle({fillOpacity:.16,weight:0.8,color:'#8a8a8a'}));
     }}).addTo(map);
 }
 $('t-fill').onclick = e=>{ mode='fill'; press(e.target,true); press($('t-line'),false); applyToggles(); };
