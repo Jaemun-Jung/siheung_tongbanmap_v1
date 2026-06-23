@@ -592,6 +592,9 @@ function renderBoundary(){
     l.on('click', e=>{ $('res').innerHTML=txt; const m=e.originalEvent;
       if(m.ctrlKey||m.metaKey||m.shiftKey) toggleTong(p.통); else selectSingle(p.통); });
     l.on('contextmenu', e=>{ L.DomEvent.preventDefault(e); $('res').innerHTML=txt; toggleTong(p.통); });
+    // 마우스 올린 필지를 살짝 진하게 — 어느 필지를 가리키는지 바로 보이게(구멍 필지와 동일한 방식)
+    l.on('mouseover', ()=> l.setStyle({weight:2.4, fillOpacity:0.82}));
+    l.on('mouseout',  ()=> l.setStyle(pStyle(f)));
   }}).addTo(map);
   curParcels = cur.parcels;
   cur.tong = L.geoJSON(curLineData,{style:tongStyle}).addTo(map);
@@ -760,11 +763,14 @@ function press(btn,on){ btn.classList.toggle('on',on); }
 function renderUnassigned(){
   if(cur.unassigned){ map.removeLayer(cur.unassigned); cur.unassigned=null; }
   if(!$('t-unassigned').classList.contains('on') || !curUnassignedData) return;
-  cur.unassigned = L.geoJSON(curUnassignedData, { renderer: L.canvas(),
+  cur.unassigned = L.geoJSON(curUnassignedData, {
     style:{color:'#8e0048',weight:1.6,fillColor:'#ff2d95',fillOpacity:.55,opacity:.95},
     onEachFeature:(f,l)=>{ const p=f.properties;
       const txt=`${p.법정동} ${p.지번} <small>(${p.지목||'대'} · <b>통 미배정</b>)</small>`;
-      l.bindPopup(txt); l.on('click', e=>{ L.DomEvent.stopPropagation(e); $('res').innerHTML=txt; });
+      l.bindPopup(txt);
+      l.on('click', e=>{ L.DomEvent.stopPropagation(e); $('res').innerHTML=txt; });
+      l.on('mouseover',()=> l.setStyle({fillOpacity:.8,weight:2.2}));
+      l.on('mouseout', ()=> l.setStyle({fillOpacity:.55,weight:1.6}));
     }}).addTo(map);
 }
 // '통에 둘러싸인 빈 필지'(구멍) — 미배정 대지 토글과 무관하게 항상 클릭 가능(지번 확인용).
@@ -772,14 +778,14 @@ function renderUnassigned(){
 function renderHoles(){
   if(cur.holes){ map.removeLayer(cur.holes); cur.holes=null; }
   if(!curHolesData || !(curHolesData.features||[]).length) return;
-  cur.holes = L.geoJSON(curHolesData, { renderer: L.canvas(),
-    style:{color:'#8a8a8a',weight:0.8,dashArray:'2 3',fillColor:'#b8b8b8',fillOpacity:.16,opacity:.55},
+  cur.holes = L.geoJSON(curHolesData, {
+    style:{color:'#37474f',weight:1.2,dashArray:'3 3',fillColor:'#90a4ae',fillOpacity:.35,opacity:.85},
     onEachFeature:(f,l)=>{ const p=f.properties;
       const txt=`${p.법정동} ${p.지번} <small>(${p.지목||'?'})</small><br><b>통에 둘러싸인 빈 필지</b> <small>— 어느 통에도 없음(별표 확인)</small>`;
       l.bindPopup(txt);
       l.on('click', e=>{ L.DomEvent.stopPropagation(e); $('res').innerHTML=txt; });
-      l.on('mouseover',()=> l.setStyle({fillOpacity:.42,weight:1.4,color:'#555'}));
-      l.on('mouseout', ()=> l.setStyle({fillOpacity:.16,weight:0.8,color:'#8a8a8a'}));
+      l.on('mouseover',()=> l.setStyle({fillOpacity:.62,weight:2,color:'#102027'}));
+      l.on('mouseout', ()=> l.setStyle({fillOpacity:.35,weight:1.2,color:'#37474f'}));
     }}).addTo(map);
 }
 $('t-fill').onclick = e=>{ mode='fill'; press(e.target,true); press($('t-line'),false); applyToggles(); };
