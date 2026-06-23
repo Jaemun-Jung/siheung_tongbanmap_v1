@@ -46,8 +46,26 @@ def apt_name(head, beops):
 
 
 def norm(s):
-    """검색 매칭용 정규화: 공백·'아파트'·Ⓐ 제거."""
-    return re.sub(r'\s+', '', (s or '')).replace('아파트', '').replace('Ⓐ', '')
+    """검색 매칭용 정규화: 소문자·공백/'아파트'/Ⓐ 제거 + e편한세상↔이편한세상 동치.
+    index.html 의 aptNorm 과 반드시 동일하게 유지(별칭 매칭 일치)."""
+    s = re.sub(r'\s+', '', (s or '')).lower()
+    s = s.replace('아파트', '').replace('ⓐ', '').replace('ａ', '')
+    s = s.replace('ｅ', 'e').replace('e편한세상', '이편한세상')
+    return s
+
+
+def load_aliases():
+    """data/apt_aliases.csv → {(code, n별표): set(정규화 별칭)} (검색용 별칭)."""
+    amap = {}
+    p = "data/apt_aliases.csv"
+    if not os.path.exists(p):
+        return amap
+    for r in csv.DictReader(open(p, encoding="utf-8-sig")):
+        n = norm(r["별표명"])
+        al = norm(r["별칭(juso공식명)"])
+        if al and al != n:
+            amap.setdefault((r["code"], n), set()).add(al)
+    return amap
 
 
 def main():
@@ -108,11 +126,19 @@ def main():
         if k in seen:
             continue
         seen.add(k); uniq.append(it)
-    json.dump({"list": uniq}, open("out/apartment_index.json", "w", encoding="utf-8"),
+    # 별칭(실제·공식명) — 검색 시 별표명 외 실제명으로도 잡히게
+    amap = load_aliases()
+    present = {(it["code"], it["n"]) for it in uniq}
+    alias = {f"{c}{n}": sorted(v) for (c, n), v in amap.items()
+             if (c, n) in present}
+    json.dump({"list": uniq, "alias": alias},
+              open("out/apartment_index.json", "w", encoding="utf-8"),
               ensure_ascii=False)
     names = {it["n"] for it in uniq}
     size = os.path.getsize("out/apartment_index.json")
-    print(f"아파트 동 인덱스 {len(uniq)}건 · 아파트명 {len(names)}종 → out/apartment_index.json ({size//1024}KB)")
+    print(f"아파트 동 인덱스 {len(uniq)}건 · 아파트명 {len(names)}종 · "
+          f"별칭 {sum(len(v) for v in alias.values())}건({len(alias)}아파트) "
+          f"→ out/apartment_index.json ({size//1024}KB)")
 
 
 if __name__ == "__main__":

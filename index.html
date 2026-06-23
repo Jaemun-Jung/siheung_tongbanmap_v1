@@ -363,8 +363,8 @@ fetch('out/manifest.json').then(r=>r.json()).then(m=>{
 }).catch(e=> setStatus('manifest 로드 실패 — 웹서버로 열었는지 확인 (file:// 불가)'));
 
 // 아파트 동(棟) → 통/반 검색 인덱스 — 지도에 못 그리는(동·호로 나뉜) 아파트도 이름+동으로 조회
-let aptIndex=null;
-fetch('out/apartment_index.json').then(r=>r.json()).then(d=>{ aptIndex=d.list; }).catch(()=>{});
+let aptIndex=null, aptAlias={};
+fetch('out/apartment_index.json').then(r=>r.json()).then(d=>{ aptIndex=d.list; aptAlias=d.alias||{}; }).catch(()=>{});
 
 // 관리자 모드 — 주소에 ?admin=1 일 때만 '담당자 검토'(전체현황·멀리떨어진필지·누락 등) 노출.
 // 평소(일반 주소)엔 완전히 숨김. 담당자만 ?admin=1 주소를 북마크해 사용.
@@ -782,7 +782,10 @@ function search(){
   else searchJibun(v);                         // 지번
 }
 // ---------- 아파트 동(棟) 검색 — 이름(+동)으로 통/반 조회 ----------
-const aptNorm = s => (s||'').toLowerCase().replace(/\s+/g,'').replace(/아파트/g,'').replace(/Ⓐ/g,'');
+// 검색 정규화 — gen_apartment_index.norm 과 동일하게 유지(별칭 매칭 일치)
+const aptNorm = s => (s||'').toLowerCase().replace(/\s+/g,'').replace(/아파트/g,'')
+  .replace(/Ⓐ/g,'').replace(/ⓐ/g,'').replace(/ａ/g,'').replace(/ｅ/g,'e')
+  .replace(/e편한세상/g,'이편한세상');
 // 이름 유사도(0~1): 완전일치=1, 한쪽이 다른쪽 포함=0.9, 그 외 글자 바이그램 Dice계수
 function aptSim(q, n){
   if(!q||!n) return 0;
@@ -803,15 +806,24 @@ function searchApartment(v){
   nameRaw = nameRaw.replace(/\d+\s*호[\s\d~～\-호]*/g,' ');   // 호 표기 제거
   const q = aptNorm(nameRaw);
   if((q.match(/[가-힣a-z0-9]/g)||[]).length < 2) return false; // 이름(2자+) 없으면 아파트 검색 아님
-  // 이름별 유사도(대소문자 무시) — 일부만 비슷해도(시흥 빠짐, LH 대소문자, 단지번호 차이) 잡는다
+  // 이름별 유사도(대소문자 무시) — 별표명 + 실제명(별칭)으로 매칭.
+  // 별표는 축약명, 실제·공식명은 더 김("이편한세상시흥장현"=실제"…퍼스트베뉴") → 별칭으로 보강.
   const TH = 0.45, score = {};
-  aptIndex.forEach(it => { if(!(it.n in score)) score[it.n] = aptSim(q, it.n.toLowerCase()); });
-  let hits = aptIndex.filter(it => score[it.n] >= TH);
+  aptIndex.forEach(it => {
+    const k = it.code+''+it.n;
+    if(k in score) return;
+    let s = aptSim(q, it.n.toLowerCase());
+    const al = aptAlias[k];
+    if(al) for(const a of al){ const v = aptSim(q, a); if(v>s) s = v; }   // 실제명(별칭)으로도 매칭
+    score[k] = s;
+  });
+  const sc = it => score[it.code+''+it.n];
+  let hits = aptIndex.filter(it => sc(it) >= TH);
   if(!hits.length) return false;
   if(bdong!=null){ const bd=String(bdong).toLowerCase();
     const f = hits.filter(it => String(it.동).toLowerCase()===bd); if(f.length) hits = f; }  // 동 있으면 우선
   // 유사도 높은 순 → 동명 → 통 → 반 → 동
-  hits.sort((a,b)=> score[b.n]-score[a.n] || a.dong.localeCompare(b.dong) || a.통-b.통 || a.반-b.반
+  hits.sort((a,b)=> sc(b)-sc(a) || a.dong.localeCompare(b.dong) || a.통-b.통 || a.반-b.반
                  || String(a.동).localeCompare(String(b.동),'ko',{numeric:true}));
   renderAptResults(v, hits, bdong);
   return true;
