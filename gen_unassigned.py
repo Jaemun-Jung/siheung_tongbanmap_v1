@@ -23,8 +23,10 @@ def canon_pnu(pnu):
 
 
 def jimok(j):
+    # 지번과 지목 사이 공백("1774-10 대")이 지목에 붙어 " 대"가 되면
+    # startswith("대")가 빗나가 미배정에서 누락되므로 공백을 떼어낸다.
     m = re.match(r'^산?\d[\d-]*(\D*)$', str(j))
-    return m.group(1) if m else ''
+    return m.group(1).strip() if m else ''
 
 
 def main():
