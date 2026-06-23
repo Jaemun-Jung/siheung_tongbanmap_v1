@@ -554,7 +554,9 @@ function loadDong(code, dong, afterLoad){
     // 뷰를 먼저 해당 동으로 맞춘 뒤 필지를 그린다(animate:false).
     // 그러지 않으면 수천 개 필지가 낮은 줌에서 어두운 덩어리로 렌더된 뒤 줌인에 확대돼
     // "커다란 검은 네모"처럼 깜빡인다.
-    map.fitBounds(cur.admin.getBounds(),{padding:[20,20],animate:false});
+    // 통(본체) 범위로 맞춤 — 행정경계는 대부황금로 같은 빈 도로 꼬리를 포함해 본체가 작아짐.
+    // manifest bounds는 gen_manifest가 통(_tong) 기준으로 만든 본체 범위.
+    map.fitBounds((md && md.bounds) ? md.bounds : cur.admin.getBounds(), {padding:[20,20], animate:false});
     renderBoundary(); renderHoles();
     // 패널(결과·미표시 통)을 먼저 현재 동으로 갱신 — 보조 기능이 실패해도 패널은 항상 맞게
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 통/필지를 클릭하거나 지번을 검색하세요.`;
