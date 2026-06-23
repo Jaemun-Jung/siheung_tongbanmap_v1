@@ -92,6 +92,11 @@
  #panel-toggle{position:absolute;z-index:1001;top:10px;left:10px;width:42px;height:42px;
    border:none;border-radius:10px;background:#fff;box-shadow:0 1px 6px rgba(0,0,0,.3);
    font-size:20px;cursor:pointer;display:none}
+ #panel-close{position:absolute;top:8px;right:8px;width:26px;height:26px;border:none;
+   border-radius:7px;background:#eef1f4;color:#555;font-size:15px;line-height:1;cursor:pointer;z-index:2}
+ #panel-close:hover{background:#dde3e8;color:#111}
+ body.nopanel #panel{display:none}
+ body.nopanel #panel-toggle{display:block}
  .tong-label{display:inline-block;min-width:16px;padding:0 5px;background:rgba(255,255,255,.93);
    border:2px solid #333;border-radius:11px;font-weight:700;font-size:12px;line-height:15px;
    color:#111;text-align:center;box-shadow:0 1px 2px rgba(0,0,0,.4)}
@@ -107,9 +112,7 @@
    background:var(--blue);color:#fff;font-weight:800;font-size:22px;padding:9px 26px;letter-spacing:.5px;
    border-radius:26px;box-shadow:0 2px 10px rgba(0,0,0,.4);display:none;pointer-events:none}
  @media(max-width:640px){
-   .panel{width:calc(100% - 20px);max-height:55%;display:none}
-   .panel.open{display:block}
-   #panel-toggle{display:block}
+   .panel{width:calc(100% - 20px);max-height:72%}
  }
  /* ===== 인쇄: 지도를 종이 픽셀 크기로 고정 → 화면=인쇄 1:1(영역 어긋남 방지) ===== */
  #print-header{display:none}
@@ -128,6 +131,7 @@
 <button id="panel-toggle">☰</button>
 <div id="dong-badge"></div>
 <div class="panel" id="panel">
+  <button id="panel-close" title="설정창 접기">✕</button>
   <h1>시흥시 통·반 조회 지도</h1>
   <div id="cur-dong" class="curdong">시흥시 전체</div>
   <div class="sub">행정동을 선택하거나 주소를 검색하세요.</div>
@@ -165,14 +169,7 @@
         <button class="b on" id="bm-parcel">필지별</button>
         <button class="b" id="bm-clean">통별</button>
       </div>
-      <div class="hint">필지별=지번 하나하나 자세히 · 통별=통을 하나로 합친 깔끔한 면(상황판·출력용). 둘 다 시행규칙 별표 통 그대로(정확).</div>
-
-      <label>배경지도</label>
-      <div class="row tight" id="bases">
-        <button class="b on" data-base="osm">일반</button>
-        <button class="b" data-base="sat">위성</button>
-        <button class="b" data-base="cad">지적편집도</button>
-      </div>
+      <div class="hint">필지별=지번 단위 · 통별=통을 한 면으로(상황판·출력용)</div>
 
       <label>표시 항목</label>
       <div class="row tight">
@@ -253,34 +250,14 @@
 <script src="https://unpkg.com/@geoman-io/leaflet-geoman-free@2.18.3/dist/leaflet-geoman.min.js"></script>
 <script src="https://unpkg.com/@turf/turf@6.5.0/turf.min.js"></script>
 <script>
-// ===== 브이월드 자리(키 발급 후 입력하면 위성/지적편집도 활성) =====
-const VWORLD_KEY = "";  // https://www.vworld.kr 개발키(무료) + 도메인 등록 후 입력
 const JUSO_KEY = "devU01TX0FVVEgyMDI2MDYyMDExMjM0NTExOTQ2NzM=";  // juso.go.kr 개발키(도로명주소 검색)
 
-// ---------- 배경지도 ----------
-const bases = {
-  osm: L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-        {attribution:'© OpenStreetMap', maxZoom:19}),
-  sat: VWORLD_KEY && L.tileLayer(
-        `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Satellite/{z}/{y}/{x}.jpeg`,
-        {attribution:'© VWorld', maxZoom:19}),
-  cad: VWORLD_KEY && L.tileLayer(
-        `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/Base/{z}/{y}/{x}.png`,
-        {attribution:'© VWorld 지적', maxZoom:19}),
-};
+// ---------- 배경지도 (OSM 일반지도) ----------
 const map = L.map('map', {zoomControl:false}).setView([37.38, 126.80], 11);
 map.attributionControl.setPrefix(false);   // 'Leaflet 🇺🇦' 접두어 제거(OSM 표기는 라이선스상 유지)
 L.control.zoom({position:'topright'}).addTo(map);
-let curBase = bases.osm.addTo(map);
-document.querySelectorAll('#bases button').forEach(btn=>{
-  const key = btn.dataset.base;
-  if(key!=='osm' && !bases[key]){ btn.disabled=true; btn.title='브이월드 API 키 필요 (index.html VWORLD_KEY)'; }
-  btn.onclick=()=>{
-    if(!bases[key]) return;
-    map.removeLayer(curBase); curBase = bases[key].addTo(map); curBase.bringToBack();
-    document.querySelectorAll('#bases button').forEach(b=>b.classList.toggle('on', b===btn));
-  };
-});
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {attribution:'© OpenStreetMap', maxZoom:19}).addTo(map);
 
 // ---------- 색상/스타일 설정 (localStorage, 5단계) ----------
 const NCOL = 12;                                     // 색 슬롯 수(인접 통은 서로 다른 슬롯)
@@ -556,7 +533,7 @@ function loadDong(code, dong, afterLoad){
     $('res').innerHTML = `<b>${dong}</b> 표시 중 — 통/필지를 클릭하거나 지번을 검색하세요.`;
     setStatus(''); showIssues(code); renderManualList(); populateTongSelect();
     if(afterLoad) afterLoad();
-    if(window.matchMedia('(max-width:640px)').matches) $('panel').classList.remove('open');
+    if(window.matchMedia('(max-width:640px)').matches) document.body.classList.add('nopanel');  // 모바일: 선택 후 지도 보이게 접기
   }).catch(e=> setStatus(`${dong} 로드 실패: ${e}`));
 }
 
@@ -1148,7 +1125,9 @@ function renderManualList(){
     if(!manualData[curCode].length) delete manualData[curCode];
     saveManual(); renderManual(); });
 }
-// ---------- 모바일 패널 ----------
-$('panel-toggle').onclick = ()=> $('panel').classList.toggle('open');
+// ---------- 패널 접기/펴기 (모든 화면) ----------
+$('panel-close').onclick  = ()=> document.body.classList.add('nopanel');     // ✕ 접기
+$('panel-toggle').onclick = ()=> document.body.classList.remove('nopanel');  // ☰ 펴기
+if(window.matchMedia('(max-width:640px)').matches) document.body.classList.add('nopanel');  // 모바일은 처음에 접힌 채 시작(지도 먼저)
 </script>
 </body></html>
