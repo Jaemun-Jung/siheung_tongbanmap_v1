@@ -256,8 +256,8 @@ const JUSO_KEY = "devU01TX0FVVEgyMDI2MDYyMDExMjM0NTExOTQ2NzM=";  // juso.go.kr �
 const map = L.map('map', {zoomControl:false}).setView([37.38, 126.80], 11);
 map.attributionControl.setPrefix(false);   // 'Leaflet 🇺🇦' 접두어 제거(OSM 표기는 라이선스상 유지)
 L.control.zoom({position:'topright'}).addTo(map);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  {attribution:'© OpenStreetMap', maxZoom:19}).addTo(map);
+const curBase = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+  {attribution:'© OpenStreetMap', maxZoom:19}).addTo(map);  // 배경 타일(맨 아래 유지용 참조)
 
 // ---------- 색상/스타일 설정 (localStorage, 5단계) ----------
 const NCOL = 12;                                     // 색 슬롯 수(인접 통은 서로 다른 슬롯)
