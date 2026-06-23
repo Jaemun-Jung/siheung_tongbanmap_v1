@@ -590,7 +590,7 @@ function renderBoundary(){
     const p=f.properties;
     const dn = curDongName ? curDongName + ' ' : '';   // 행정동 접두("군자동 25통 2반")
     // 출처(근거) 배지 — 확실한 것(별표 직접)은 초록으로 강조, 도로는 중립, 아파트는 정보
-    const BYP = `<br><span class="src src-byp">✓ 시행규칙 별표</span><div class="src-sub">시흥시 통·반 설치 시행규칙 별표 · 2026.2.26</div>`;
+    const BYP = `<br><span class="src src-byp">✓ 시행규칙 별표</span><div class="src-sub">시흥시 통·반 설치 조례 시행규칙 별표 · 2026.2.26</div>`;
     const roadTxt = p.fill_method==='manual_pending' ? '도로 — 검토 대상' : '도로 — 인접 통 기준';
     const txt = manualF(f) ? `<b>${dn}${p.통}통 (검토중)</b><br><small>${p.reason||'수동 보정'}<br>${p.date||''}</small>`
       : clean ? `<b>${dn}${p.통}통</b>`
