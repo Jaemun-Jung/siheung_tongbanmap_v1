@@ -212,7 +212,7 @@
   </details>
 
   <details class="sec">
-    <summary>✏️ 빠진 통 그리기</summary>
+    <summary>✏️ 통 경계 직접 그리기</summary>
     <div class="secbody">
       <div class="row tight">
         <button class="b" id="draw-tong">✏️ 통 그리기</button>
@@ -449,7 +449,7 @@ $('issues').addEventListener('click', e=>{
     dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>이 통의 정확한 위치는 자동으로 못 잡았어요.<br>대략 <b>이 동(洞) 안</b>에 있습니다. 별표의 단지·블록명으로 확인하세요.</div>`, {autoPan:false});
   } else {      // 정확 위치 — 화면 정중앙으로
     map.setView([lat,lon], 18, {animate:true});
-    dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>아파트를 동별로 나눈 통이에요.<br>• <b>아파트 이름+동</b>으로 검색하면 통·반이 나와요.<br>• 경계를 직접 그리려면 왼쪽 <b>‘빠진 통 그리기’</b>를 쓰세요.</div>`, {autoPan:false});
+    dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>아파트를 동별로 나눈 통이에요.<br>• <b>아파트 이름+동</b>으로 검색하면 통·반이 나와요.<br>• 경계를 직접 그리려면 왼쪽 <b>‘통 경계 직접 그리기’</b>를 쓰세요.</div>`, {autoPan:false});
   }
 });
 function showCityIssues(){
@@ -1083,7 +1083,7 @@ $('fa').addEventListener('input', e=>{ settings.fillAlpha=+e.target.value; recol
   $('lw').value=settings.lineWeight; $('fa').value=settings.fillAlpha;
 })();
 
-// ---------- 9단계: 수동 보정(빠진 통 그리기) ----------
+// ---------- 9단계: 수동 보정(통 경계 직접 그리기) ----------
 let manualData = JSON.parse(localStorage.getItem('tongban_manual') || '{}');  // {code:[{통,reason,date,geometry}]}
 let drawing = false;
 function saveManual(){ localStorage.setItem('tongban_manual', JSON.stringify(manualData)); }
@@ -1194,7 +1194,7 @@ map.on('pm:create', e=>{
   const gj = e.layer.toGeoJSON(); map.removeLayer(e.layer);
   map.pm.disableDraw(); setDrawUI(false);
   if(!curCode){ setStatus('동을 먼저 선택하세요.'); return; }
-  const t = prompt('빠진 통 번호를 입력하세요:');
+  const t = prompt('그릴 통 번호를 입력하세요:');
   if(!t || !/^\d+$/.test(t.trim())){ setStatus('통 번호가 올바르지 않아 취소됨.'); return; }
   const reason = prompt('근거/메모 (선택):', '도로 기준 추정') || '';
   (manualData[curCode] = manualData[curCode] || []).push(
