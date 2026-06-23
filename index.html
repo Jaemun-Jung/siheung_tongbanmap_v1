@@ -598,7 +598,8 @@ function renderBoundary(){
       : road(f) ? `${p.법정동} ${p.지번} <small>(도로)</small><br><b>${dn}${p.통}통</b><br><span class="src src-road">${roadTxt}</span>`
       : `${p.법정동} ${p.지번}<br><b>${dn}${p.통}통 ${p.반}반</b>${BYP}`;
     l.bindPopup(txt);
-    l.on('click', e=>{ $('res').innerHTML=txt; const m=e.originalEvent;
+    l.on('click', e=>{ if(drawing) return;       // 그리기 중엔 끼어들지 않음(점 찍기 양보)
+      $('res').innerHTML=txt; const m=e.originalEvent;
       if(m.ctrlKey||m.metaKey||m.shiftKey) toggleTong(p.통); else selectSingle(p.통); });
     l.on('contextmenu', e=>{ L.DomEvent.preventDefault(e); $('res').innerHTML=txt; toggleTong(p.통); });
     // 마우스 올린 필지를 살짝 진하게 — 어느 필지를 가리키는지 바로 보이게(구멍 필지와 동일한 방식)
@@ -624,7 +625,7 @@ function loadNeighbors(curCode){
       style: NB,
       onEachFeature: (f,l) => { const p=f.properties;
         l.bindTooltip(`${p.dong} (클릭하면 이동)`, {sticky:true});
-        l.on('click', ()=> loadDong(p.code, p.dong));
+        l.on('click', ()=>{ if(drawing) return; loadDong(p.code, p.dong); });
         l.on('mouseover', ()=> l.setStyle({fillOpacity:0.01, color:'#1769aa', weight:2, opacity:0.9}));  // 채움 그대로(검은 면 안 뜸), 외곽선만 강조
         l.on('mouseout',  ()=> l.setStyle(NB));
       }}).addTo(map);
@@ -782,7 +783,7 @@ function renderHoles(){
     onEachFeature:(f,l)=>{ const p=f.properties;
       const txt=`${p.법정동} ${p.지번} <small>(${p.지목||'대'})</small><br><b>통 미배정</b> <small>— 별표 누락 의심(통 확인 필요)</small>`;
       l.bindPopup(txt);
-      l.on('click', e=>{ L.DomEvent.stopPropagation(e); $('res').innerHTML=txt; });
+      l.on('click', e=>{ if(drawing) return; L.DomEvent.stopPropagation(e); $('res').innerHTML=txt; });
       l.on('mouseover',()=> l.setStyle({fillOpacity: on?.85:.6, weight: on?2.4:1.8, color: on?'#8e0048':'#102027'}));
       l.on('mouseout', ()=> l.setStyle(base));
     }}).addTo(map);
