@@ -1013,25 +1013,34 @@ $('go').onclick = search;
 $('q').addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
 
 // ===== 영역 인쇄: 지도에서 사각형을 드래그해 그 부분만 한 장으로 인쇄(PDF 저장) =====
-let printSelecting=false, printRect=null, printBounds=null, printDownLL=null;
+let printSelecting=false, printRect=null, printBounds=null, printDownLL=null, printOverlay=null;
 function clearPrintRect(){ if(printRect){ map.removeLayer(printRect); printRect=null; }
   printBounds=null; $('print-bar').style.display='none'; }
 function endSelectMode(){ printSelecting=false; map.dragging.enable();
-  map.getContainer().style.cursor=''; map.off('mousedown',onPDown);
-  map.off('mousemove',onPMove); map.off('mouseup',onPUp); }
+  window.removeEventListener('mousemove',ovMove); window.removeEventListener('mouseup',ovUp);
+  window.removeEventListener('touchmove',ovMove); window.removeEventListener('touchend',ovUp);
+  if(printOverlay){ printOverlay.remove(); printOverlay=null; } }
 function startPrintSelect(){
   clearPrintRect();
-  printSelecting=true; map.dragging.disable(); map.getContainer().style.cursor='crosshair';
+  printSelecting=true; map.dragging.disable();
   setStatus('드래그하세요 — 사각형이 용지 비율로 고정되어, 선택한 그대로 출력됩니다.');
-  map.on('mousedown',onPDown);
+  // 선택 중엔 지도 위를 '투명 캡처 층'으로 덮는다 → 필지/통 클릭에 이벤트를 안 뺏기고 사각형만 그림
+  printOverlay=document.createElement('div');
+  printOverlay.style.cssText='position:absolute;inset:0;z-index:1500;cursor:crosshair;touch-action:none';
+  map.getContainer().appendChild(printOverlay);
+  printOverlay.addEventListener('mousedown',ovDown);
+  printOverlay.addEventListener('touchstart',ovDown,{passive:false});
 }
-function onPDown(e){ if(!printSelecting) return; printDownLL=e.latlng;
+function _evPt(e){ const t=(e.touches&&e.touches[0])||e, r=map.getContainer().getBoundingClientRect();
+  return L.point(t.clientX-r.left, t.clientY-r.top); }
+function ovDown(e){ if(!printSelecting) return; e.preventDefault();
+  printDownLL=map.containerPointToLatLng(_evPt(e));
   if(printRect){ map.removeLayer(printRect); printRect=null; }
-  map.on('mousemove',onPMove); map.on('mouseup',onPUp); }
-function onPMove(e){ if(!printDownLL) return;
+  window.addEventListener('mousemove',ovMove); window.addEventListener('mouseup',ovUp);
+  window.addEventListener('touchmove',ovMove,{passive:false}); window.addEventListener('touchend',ovUp); }
+function ovMove(e){ if(!printDownLL) return; e.preventDefault();
   // 드래그 사각형을 '종이 비율'에 고정 → 화면에서 잡은 모양 그대로 인쇄(여백 안 생김)
-  const asp=printMapAspect();
-  const p0=map.latLngToContainerPoint(printDownLL), p1=map.latLngToContainerPoint(e.latlng);
+  const asp=printMapAspect(), p0=map.latLngToContainerPoint(printDownLL), p1=_evPt(e);
   const sx=(p1.x-p0.x)<0?-1:1, sy=(p1.y-p0.y)<0?-1:1;
   let w=Math.abs(p1.x-p0.x), h=Math.abs(p1.y-p0.y); if(h<1) h=1;
   if(w/h>asp) h=w/asp; else w=h*asp;
@@ -1039,8 +1048,8 @@ function onPMove(e){ if(!printDownLL) return;
   if(printRect) printRect.setBounds(b);
   else printRect=L.rectangle(b,{color:'#e53935',weight:2,dashArray:'5 4',
     fill:true,fillColor:'#e53935',fillOpacity:.06,interactive:false}).addTo(map); }
-function onPUp(e){ endSelectMode();
-  const b = printRect ? printRect.getBounds() : L.latLngBounds(printDownLL,e.latlng);  // 비율 고정된 사각형 그대로
+function ovUp(e){ endSelectMode();
+  const b = printRect ? printRect.getBounds() : null;   // 비율 고정된 사각형 그대로
   if(!b || b.getNorth()-b.getSouth()<1e-5 || b.getEast()-b.getWest()<1e-5){
     clearPrintRect(); setStatus('영역이 너무 작습니다. 버튼을 다시 눌러 드래그하세요.'); return; }
   printBounds=b;
