@@ -41,7 +41,8 @@
  .search-pin{width:16px;height:16px;border-radius:50%;background:#e53935;border:3px solid #fff;animation:sppulse 1.4s ease-out infinite}
  @keyframes sppulse{0%{box-shadow:0 0 0 0 rgba(229,57,53,.55),0 1px 4px rgba(0,0,0,.5)}70%{box-shadow:0 0 0 13px rgba(229,57,53,0),0 1px 4px rgba(0,0,0,.5)}100%{box-shadow:0 0 0 0 rgba(229,57,53,0),0 1px 4px rgba(0,0,0,.5)}}
  #res b{font-size:18px;color:var(--blue)}                 /* 통/반 강조 — 클릭·검색 시 잘 보이게 */
- #res .aptrow b{font-size:13.5px;color:#111}              /* 아파트 검색 목록은 줄이 많아 작게 유지 */
+ #res .aptrow b{font-size:14.5px;color:#111}              /* 아파트명+동 */
+ #res .aptrow b.tb{font-size:17px;color:var(--blue)}      /* 통·반은 클릭 결과처럼 크게 강조 */
  .review-sec>summary{cursor:pointer;color:#999;font-size:12px;margin-top:7px}  /* 담당자 검토 — 접이식, 평소 은은하게 */
  .review-sec>summary:hover{color:var(--blue)}
  .review-sec .review-body{margin-top:4px}
@@ -174,6 +175,14 @@
   <details class="sec">
     <summary>🎨 지도 보기 설정</summary>
     <div class="secbody">
+      <label>배경 지도</label>
+      <div class="row tight" id="basemaps">
+        <button class="b on" data-base="osm">일반</button>
+        <button class="b" data-base="vbase">브이월드</button>
+        <button class="b" data-base="sat">위성</button>
+      </div>
+      <div class="hint">브이월드·위성은 <b>배포 사이트</b>에서 보입니다(브이월드 키는 등록 도메인 전용 → 로컬·미리보기에선 안 뜸).</div>
+
       <label>경계 방식</label>
       <div class="row tight" id="bmode">
         <button class="b on" id="bm-parcel">필지별</button>
@@ -262,12 +271,37 @@
 <script>
 const JUSO_KEY = "devU01TX0FVVEgyMDI2MDYyMDExMjM0NTExOTQ2NzM=";  // juso.go.kr 개발키(도로명주소 검색)
 
-// ---------- 배경지도 (OSM 일반지도) ----------
+// ---------- 배경지도 (OSM 일반 + 브이월드 일반/위성 전환) ----------
 const map = L.map('map', {zoomControl:false}).setView([37.38, 126.80], 11);
 map.attributionControl.setPrefix(false);   // 'Leaflet 🇺🇦' 접두어 제거(OSM 표기는 라이선스상 유지)
 L.control.zoom({position:'topright'}).addTo(map);
-const curBase = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  {attribution:'© OpenStreetMap', maxZoom:19}).addTo(map);  // 배경 타일(맨 아래 유지용 참조)
+map.createPane('basemap'); map.getPane('basemap').style.zIndex = 120;   // 배경 타일은 항상 데이터(통/필지) 아래
+// 브이월드(국토부 공간정보) 배경. ★키는 등록 도메인(siheung-tongbanmap.onrender.com)에서만 타일이 뜸 → 로컬(localhost)에선 안 보임(정상).
+const VWORLD_KEY = "5BBE0C1D-D4B2-3ACC-BE58-D80EF63049C6";
+const vwUrl = (layer, ext)=> `https://api.vworld.kr/req/wmts/1.0.0/${VWORLD_KEY}/${layer}/{z}/{y}/{x}.${ext||'png'}`;
+const VW_ATTR = '© <a href="https://www.vworld.kr" target="_blank">VWorld</a> 국토교통부';
+const BASEMAPS = {
+  osm:   ()=> L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+              {attribution:'© OpenStreetMap', maxZoom:19, pane:'basemap'}),
+  vbase: ()=> L.tileLayer(vwUrl('Base'),
+              {attribution:VW_ATTR, maxZoom:19, pane:'basemap'}),
+  sat:   ()=> L.layerGroup([                                   // 위성 + 한글 지명/경계(하이브리드) 겹침
+              L.tileLayer(vwUrl('Satellite','jpeg'), {maxZoom:19, pane:'basemap', attribution:VW_ATTR}),
+              L.tileLayer(vwUrl('Hybrid'),           {maxZoom:19, pane:'basemap'})]),
+};
+let curBaseName = 'osm';
+let curBase = BASEMAPS.osm().addTo(map);   // 기본 = OSM(키 없이 어디서나 동작, 안전한 기본값)
+function setBasemap(name){
+  if(BASEMAPS[name] && name!==curBaseName){
+    if(curBase) map.removeLayer(curBase);
+    curBase = BASEMAPS[name]().addTo(map);
+    curBaseName = name;
+    try{ localStorage.setItem('tongban_basemap', name); }catch(e){}
+  }
+  document.querySelectorAll('#basemaps button').forEach(b=> b.classList.toggle('on', b.dataset.base===name));
+}
+document.querySelectorAll('#basemaps button').forEach(b=> b.onclick=()=> setBasemap(b.dataset.base));
+try{ const sv=localStorage.getItem('tongban_basemap'); if(sv && BASEMAPS[sv]) setBasemap(sv); }catch(e){}
 
 // ---------- 색상/스타일 설정 (localStorage, 5단계) ----------
 const NCOL = 12;                                     // 색 슬롯 수(인접 통은 서로 다른 슬롯)
@@ -632,7 +666,7 @@ function loadNeighbors(curCode){
         l.on('mouseout',  ()=> l.setStyle(NB));
       }}).addTo(map);
     cur.neighbors.bringToBack();      // 현재 동 필지/통 아래로 → 동 안쪽 클릭은 필지(통 선택) 유지
-    curBase.bringToBack();            // 배경 타일은 맨 아래
+    if(curBase && curBase.bringToBack) curBase.bringToBack();   // 배경 타일 맨 아래(위성=layerGroup이면 전용 pane이 이미 최하단)
   };
   if(allAdminCache) add(allAdminCache);
   else fetch('out/overview/all_admin.geojson').then(r=>r.json())
@@ -714,10 +748,10 @@ function buildOverviewLabels(){
     '월곶동'  :[ 0,       0.0032],   // 위로 조금
     '능곡동'  :[ 0,       0.0030],   // 살짝 위
     '장곡동'  :[-0.0035,  0],        // 살짝 왼쪽
-    '과림동'  :[-0.0085,  0],        // 더 왼쪽
-    '배곧1동' :[ 0.0060,  0.0022],   // 더 오른쪽(+위로 띄워 배곧2동과 충돌 회피)
-    '배곧2동' :[ 0.0120, -0.0022],   // 더 오른쪽(+아래로 띄움)
-    '정왕4동' :[-0.0120,  0.0024],   // 더 왼쪽(+위로 띄워 정왕본동과 충돌 회피)
+    '과림동'  :[ 0.0014, -0.0017],   // 동(통 본체) 가운데로
+    '배곧1동' :[ 0.0024,  0.0009],   // 동 가운데로
+    '배곧2동' :[ 0.0064,  0],        // 동 안쪽 가운데로(경계 밖으로 나가던 것 수정)
+    '정왕4동' :[-0.0032, -0.0002],   // 동 안쪽 가운데로
   };
   const pts  = dongs.map(d=>{ const c=ovCenters[d.code]||d.center;   // 폴리곤 중심 우선
     const n=LABEL_NUDGE[d.dong];
@@ -751,7 +785,12 @@ function buildOverviewLabels(){
   ov.labels.addTo(map);
 }
 // 전체지도에서 줌이 바뀌면 라벨 재배치(겹침은 줌에 따라 달라짐)
-map.on('zoomend', ()=>{ if(!curCode && ov.city) buildOverviewLabels(); });
+map.on('zoomend', ()=>{ if(!curCode && ov.city) buildOverviewLabels();
+  else if(curCode && cur.labels) placeLabels(); });   // 동 상세: 줌에 따라 통번호 라벨 겹침 재정리
+// 모바일: 회전·주소창 접힘 등으로 뷰포트 높이가 바뀌면 지도 크기 재계산(빈 회색/흰 영역 방지)
+let _resizeT; window.addEventListener('resize', ()=>{ clearTimeout(_resizeT);
+  _resizeT=setTimeout(()=>map.invalidateSize(false), 200); });
+window.addEventListener('orientationchange', ()=> setTimeout(()=>map.invalidateSize(false), 300));
 $('overview-btn').onclick = showOverview;
 $('bm-clean').onclick = ()=> setBoundaryMode('clean');
 $('bm-parcel').onclick = ()=> setBoundaryMode('parcel');
@@ -864,8 +903,8 @@ function renderAptResults(query, hits, bnum){
   const rows = shown.map(it=>{
     const ho = it.호 ? ` <small style="color:#888">(${it.호})</small>` : '';
     return `<div class="aptrow" data-code="${it.code}" data-dong="${it.dong}" data-t="${it.통}"
-      style="padding:4px 2px;border-bottom:1px solid #eee;cursor:pointer">
-      <b>${it.apt} ${it.동}동</b> → ${it.dong} <b>${it.통}통 ${it.반}반</b>${ho}</div>`;
+      style="padding:6px 2px;border-bottom:1px solid #eee;cursor:pointer">
+      <b>${it.apt} ${it.동}동</b> → ${it.dong} <b class="tb">${it.통}통 ${it.반}반</b>${ho}</div>`;
   }).join('');
   $('res').innerHTML = `<b>🏢 "${query}"</b> 아파트 검색 — ${hits.length}건${many?' (상위 30 표시)':''}
     <div style="margin-top:4px;max-height:240px;overflow:auto">${rows}</div>
@@ -1059,16 +1098,33 @@ function updateSelPanel(){
 $('sel-clear').onclick = clearSelection;
 
 // ---------- 색상/스타일 적용 (5단계) ----------
+let curLabelItems=[];   // 통번호 라벨 declutter용 {mk, ll, area}
 function buildLabels(features){
   cur.labels = L.layerGroup();
+  curLabelItems=[];
   (features||[]).forEach(f=>{ const p=f.properties;
     if(p.lat==null||p.lon==null) return;
     const mn=manualF(f);
     const bs=(approx(f)||mn)?'dashed':'solid';
     const bc=mn?MANUAL_COL:color(p.통);
-    cur.labels.addLayer(L.marker([p.lat,p.lon],{interactive:false,keyboard:false,icon:
+    const mk=L.marker([p.lat,p.lon],{interactive:false,keyboard:false,icon:
       L.divIcon({className:'',iconSize:[26,19],iconAnchor:[13,10],
-        html:`<div class="tong-label" style="border-color:${bc};border-style:${bs}">${p.통}</div>`})}));
+        html:`<div class="tong-label" style="border-color:${bc};border-style:${bs}">${p.통}</div>`})});
+    let area=0; try{ area=turf.area(f); }catch(e){}
+    curLabelItems.push({mk, ll:L.latLng(p.lat,p.lon), area});
+  });
+  placeLabels();
+}
+// 통번호 라벨은 통(본체) 중심에 '정확히' 고정한다(옮기지 않음 → 오인 방지). 다만 현재 줌에서
+// 박스가 서로 겹쳐 못 읽으면 '작은 통'부터 숨겨 가독성을 확보한다. 줌인하면 자리가 생겨 자동 복원.
+function placeLabels(){
+  if(!cur.labels) return;
+  cur.labels.clearLayers();
+  const shown=[];
+  curLabelItems.slice().sort((a,b)=>b.area-a.area).forEach(it=>{   // 큰 통이 라벨 우선
+    const pt=map.latLngToContainerPoint(it.ll);
+    if(shown.some(s=> Math.abs(s.x-pt.x)<27 && Math.abs(s.y-pt.y)<19)) return;  // 라벨 박스 26x19 겹침
+    shown.push(pt); cur.labels.addLayer(it.mk);
   });
 }
 function recolor(){
