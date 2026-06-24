@@ -288,6 +288,8 @@ const BASEMAPS = {
 };
 let curBaseName = 'osm';
 let curBase = BASEMAPS.osm().addTo(map);   // 기본 = OSM(키 없이 어디서나 동작, 안전한 기본값)
+// 시 경계선 색: OSM(밝은 배경)은 진한 먹색, 위성(어두운 배경)은 항공사진에서 잘 보이는 밝은 황색
+function cityLineColor(){ return curBaseName==='sat' ? '#ffd54f' : '#1f2937'; }
 function setBasemap(name){
   if(BASEMAPS[name] && name!==curBaseName){
     if(curBase) map.removeLayer(curBase);
@@ -295,6 +297,7 @@ function setBasemap(name){
     curBaseName = name;
     try{ localStorage.setItem('tongban_basemap', name); }catch(e){}
   }
+  try{ if(ov && ov.city) ov.city.setStyle({color:cityLineColor()}); }catch(e){}   // 배경 바꾸면 시 경계색도 즉시 갱신
   document.querySelectorAll('#basemaps button').forEach(b=> b.classList.toggle('on', b.dataset.base===name));
 }
 document.querySelectorAll('#basemaps button').forEach(b=> b.onclick=()=> setBasemap(b.dataset.base));
@@ -716,7 +719,7 @@ function showOverview(){
         l.on('mouseout',()=>l.setStyle({fillOpacity:0,weight:2.6,color:DLINE})); }}).addTo(map);
     // ① 시흥시 외곽선(굵은 먹색) — 주변 시와 구분(스포트라이트와 함께). 데이터 색과 안 충돌
     ov.city = L.geoJSON(city,{interactive:false,
-      style:{color:'#1f2937',weight:4,fill:false,opacity:.95}}).addTo(map);
+      style:{color:cityLineColor(),weight:4,fill:false,opacity:.95}}).addTo(map);
     // 전체보기 중심: 거북섬에서 서쪽으로 길게 뻗은 대부황금로(도로 꼬리)는 제외하고
     // 본토+거북섬 개발지(경도≥WEST_CAP)만으로 bounds 계산 → 본토가 가운데로 배치
     const WEST_CAP = 126.665;                     // 본토 최서단 126.682, 거북섬 개발지 126.67~ (도로 꼬리 126.61~66 제외)
@@ -1019,20 +1022,28 @@ function endSelectMode(){ printSelecting=false; map.dragging.enable();
 function startPrintSelect(){
   clearPrintRect();
   printSelecting=true; map.dragging.disable(); map.getContainer().style.cursor='crosshair';
-  setStatus('지도에서 인쇄할 사각형 영역을 드래그하세요.');
+  setStatus('드래그하세요 — 사각형이 용지 비율로 고정되어, 선택한 그대로 출력됩니다.');
   map.on('mousedown',onPDown);
 }
 function onPDown(e){ if(!printSelecting) return; printDownLL=e.latlng;
   if(printRect){ map.removeLayer(printRect); printRect=null; }
   map.on('mousemove',onPMove); map.on('mouseup',onPUp); }
-function onPMove(e){ const b=L.latLngBounds(printDownLL,e.latlng);
+function onPMove(e){ if(!printDownLL) return;
+  // 드래그 사각형을 '종이 비율'에 고정 → 화면에서 잡은 모양 그대로 인쇄(여백 안 생김)
+  const asp=printMapAspect();
+  const p0=map.latLngToContainerPoint(printDownLL), p1=map.latLngToContainerPoint(e.latlng);
+  const sx=(p1.x-p0.x)<0?-1:1, sy=(p1.y-p0.y)<0?-1:1;
+  let w=Math.abs(p1.x-p0.x), h=Math.abs(p1.y-p0.y); if(h<1) h=1;
+  if(w/h>asp) h=w/asp; else w=h*asp;
+  const b=L.latLngBounds(printDownLL, map.containerPointToLatLng(L.point(p0.x+sx*w, p0.y+sy*h)));
   if(printRect) printRect.setBounds(b);
   else printRect=L.rectangle(b,{color:'#e53935',weight:2,dashArray:'5 4',
     fill:true,fillColor:'#e53935',fillOpacity:.06,interactive:false}).addTo(map); }
-function onPUp(e){ const b=L.latLngBounds(printDownLL,e.latlng); endSelectMode();
-  if(b.getNorth()-b.getSouth()<1e-5 || b.getEast()-b.getWest()<1e-5){
+function onPUp(e){ endSelectMode();
+  const b = printRect ? printRect.getBounds() : L.latLngBounds(printDownLL,e.latlng);  // 비율 고정된 사각형 그대로
+  if(!b || b.getNorth()-b.getSouth()<1e-5 || b.getEast()-b.getWest()<1e-5){
     clearPrintRect(); setStatus('영역이 너무 작습니다. 버튼을 다시 눌러 드래그하세요.'); return; }
-  printBounds=b; if(printRect) printRect.setBounds(b);
+  printBounds=b;
   $('print-bar').style.display='block';
   setStatus('영역 선택됨 — ‘이 영역 인쇄’를 누르세요.');
 }
@@ -1045,6 +1056,13 @@ function buildPrintHeader(){
 }
 const PAPER_MM = { A4:[297,210], B4:[364,257], A3:[420,297], A1:[841,594] };  // 가로 기준 [w,h] mm
 const PX_PER_MM = 96/25.4;                                                    // 96dpi
+// 인쇄 시 '지도 영역'의 가로/세로 비(제목 높이 반영). 드래그 사각형을 이 비율로 고정 → 선택=출력.
+function printMapAspect(){
+  const paper=$('print-paper').value, orient=$('print-orient').value, showTitle=$('print-title').checked;
+  let [mw,mh]=PAPER_MM[paper]||PAPER_MM.A4; if(orient==='portrait')[mw,mh]=[mh,mw];
+  const pw=mw*PX_PER_MM, ph=mh*PX_PER_MM, headH=showTitle?60:0;
+  return pw/(ph-headH);
+}
 function doPrint(){
   if(!printBounds){ setStatus('먼저 인쇄할 영역을 선택하세요.'); return; }
   const paper=$('print-paper').value, orient=$('print-orient').value, showTitle=$('print-title').checked;
@@ -1060,11 +1078,12 @@ function doPrint(){
   if(showTitle){ buildPrintHeader(); $('print-header').style.width=pw+'px'; }
   // 지도를 종이 픽셀 크기로 고정 → 화면에서 잡은 영역이 인쇄에서도 그대로
   mapEl.style.cssText=`position:absolute;left:0;top:${headH}px;width:${pw}px;height:${ph-headH}px;background:#fff`;
+  const prevSnap=map.options.zoomSnap; map.options.zoomSnap=0;   // 정수 줌 스냅 끔 → 선택영역에 '딱' 맞게(축소돼 넓어지던 것 해결)
   map.invalidateSize(false);
-  map.fitBounds(printBounds,{animate:false,padding:[6,6]});
+  map.fitBounds(printBounds,{animate:false,padding:[0,0]});      // 종이 비율과 일치하므로 여백 0 = 선택=출력
   const restore=()=>{ window.removeEventListener('afterprint',restore);
     document.body.classList.remove('printing','with-title');
-    mapEl.style.cssText=prevMapStyle; map.invalidateSize(false);
+    mapEl.style.cssText=prevMapStyle; map.options.zoomSnap=prevSnap; map.invalidateSize(false);
     map.setView(prevC,prevZ,{animate:false}); window.scrollTo(prevScroll[0],prevScroll[1]);
     clearPrintRect(); setStatus(''); };
   window.addEventListener('afterprint',restore);
@@ -1076,6 +1095,15 @@ $('print-area').onclick = startPrintSelect;
 $('print-go').onclick = doPrint;
 $('print-redo').onclick = ()=>{ clearPrintRect(); startPrintSelect(); };
 $('print-cancel').onclick = ()=>{ endSelectMode(); clearPrintRect(); setStatus(''); };
+// 영역 선택 뒤 용지/방향/제목을 바꾸면, 잡아둔 사각형을 새 종이 비율로 갱신(면적 유지·중심 유지)
+['print-paper','print-orient','print-title'].forEach(id=> $(id).addEventListener('change', ()=>{
+  if(!printRect || !printBounds) return;
+  const asp=printMapAspect(), c=map.latLngToContainerPoint(printBounds.getCenter());
+  const sw=map.latLngToContainerPoint(printBounds.getSouthWest()), ne=map.latLngToContainerPoint(printBounds.getNorthEast());
+  const area=Math.abs(ne.x-sw.x)*Math.abs(sw.y-ne.y); let h=Math.sqrt(area/asp), w=asp*h;
+  const b=L.latLngBounds(map.containerPointToLatLng(L.point(c.x-w/2,c.y+h/2)), map.containerPointToLatLng(L.point(c.x+w/2,c.y-h/2)));
+  printRect.setBounds(b); printBounds=b;
+}));
 
 // ---------- 다중 통 선택 ----------
 function selectSingle(t){ selected.clear(); selected.add(t); afterSel(); }
