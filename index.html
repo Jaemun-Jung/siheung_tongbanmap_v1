@@ -496,6 +496,7 @@ function showIssues(code){
 // 미표시 통 클릭 → 그 위치로 이동 + 핀(위임: #issues는 유지되고 내용만 갱신되므로 한 번만 등록)
 $('issues').addEventListener('click', e=>{
   const li=e.target.closest('.misshit'); if(!li) return;
+  if(drawing) cancelDraw();   // 다른 미표시 통을 고르면 진행 중이던 그리기(이전 통)·상태 문구를 리셋
   const lat=+li.dataset.lat, lon=+li.dataset.lon, t=li.dataset.t, approx=li.dataset.approx;
   // autoPan:false → 팝업이 화면을 밀지 않아 핀이 가운데 그대로
   if(approx){   // 정확 위치 미상(은계 블록·산업단지·메모 등) → 동 영역으로
