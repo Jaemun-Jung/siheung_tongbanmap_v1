@@ -333,7 +333,7 @@ function setBasemap(name){
     try{ localStorage.setItem('tongban_basemap', name); }catch(e){}
   }
   try{ if(ov && ov.city) ov.city.setStyle({color:cityLineColor()}); }catch(e){}   // 배경 바꾸면 시 경계색도 즉시 갱신
-  try{ if(cur && cur.tong) cur.tong.setStyle(tongStyle); }catch(e){}              // 동 상세 통 경계색도 배경(일반/위성)에 맞춰 즉시 갱신
+  try{ if(cur && cur.tong){ cur.tong.setStyle(tongStyle); if(cur.tonghalo) cur.tonghalo.setStyle(tongHaloStyle); } }catch(e){}   // 동 상세 통 경계색·casing을 배경(일반/위성)에 맞춰 즉시 갱신
   document.querySelectorAll('#basemaps button').forEach(b=> b.classList.toggle('on', b.dataset.base===name));
 }
 document.querySelectorAll('#basemaps button').forEach(b=> b.onclick=()=> setBasemap(b.dataset.base));
@@ -405,6 +405,11 @@ function tongLineColor(){ return curBaseName==='sat' ? '#ffffff' : '#333'; }
 const tongStyle = f => { const mn=manualF(f); const on=selected.has(f.properties.통), dim=selActive()&&!on;
   return { color: mn?MANUAL_COL:tongLineColor(), weight:on?settings.lineWeight+2:settings.lineWeight,
     dashArray:(mn||approx(f))?'5 4':null, fill:false, opacity: dim?0.35:0.95 }; };
+// 위성에서만: 흰 통선 아래에 어두운 테두리(casing)를 깔아, 밝은 시가지(정왕동 등)·어두운 산지(군자동 등) 양쪽에서 다 보이게. 일반 지도에선 숨김(opacity 0).
+const tongHaloStyle = f => { const mn=manualF(f); const on=selected.has(f.properties.통), dim=selActive()&&!on;
+  return { color:'#1a1a1a', weight:(on?settings.lineWeight+2:settings.lineWeight)+2.5,
+    dashArray:(mn||approx(f))?'5 4':null, fill:false,
+    opacity: curBaseName==='sat' ? (dim?0.3:0.85) : 0 }; };
 
 // ---------- 상태 ----------
 let manifest=null, cur={neighbors:null,parcels:null,tong:null,admin:null,admincase:null,labels:null,unassigned:null,holes:null,dim:null}, curParcels=null;
@@ -666,7 +671,7 @@ function loadDong(code, dong, afterLoad){
 
 // 경계 레이어(채움/외곽선/라벨)를 현재 모드(도로망 vs 필지)로 그림
 function renderBoundary(){
-  ['parcels','tong','labels'].forEach(k=>{ if(cur[k]){ map.removeLayer(cur[k]); cur[k]=null; } });
+  ['parcels','tonghalo','tong','labels'].forEach(k=>{ if(cur[k]){ map.removeLayer(cur[k]); cur[k]=null; } });
   const clean = boundaryMode==='clean';          // 통 면(dissolve): 통을 하나로 합친 깔끔한 면
   const mfeats = manualFeatures();               // 수동 보정 통(검토중) → Feature[]
   assignManualColors(mfeats);                    // 그린 통도 인접 통과 다른 색 슬롯 배정
@@ -707,6 +712,7 @@ function renderBoundary(){
     l.on('mouseout',  ()=> l.setStyle(pStyle(f)));
   }}).addTo(map);
   curParcels = cur.parcels;
+  cur.tonghalo = L.geoJSON(curLineData,{style:tongHaloStyle,interactive:false}).addTo(map);  // 통선 아래 casing(위성에서만 보임)
   cur.tong = L.geoJSON(curLineData,{style:tongStyle}).addTo(map);
   buildLabels(curLineData.features);
   cur.labels.addTo(map);
@@ -1353,6 +1359,7 @@ function clearSelection(){ selected.clear(); afterSel(); }
 function afterSel(){
   if(cur.parcels) cur.parcels.setStyle(pStyle);
   if(cur.tong) cur.tong.setStyle(tongStyle);
+  if(cur.tonghalo) cur.tonghalo.setStyle(tongHaloStyle);
   updateSelPanel();
 }
 function updateSelPanel(){
@@ -1406,6 +1413,7 @@ function placeLabels(){
 function recolor(){
   if(cur.parcels) cur.parcels.setStyle(pStyle);
   if(cur.tong) cur.tong.setStyle(tongStyle);
+  if(cur.tonghalo) cur.tonghalo.setStyle(tongHaloStyle);
   if(cur.labels){ const wasOn=map.hasLayer(cur.labels); map.removeLayer(cur.labels);
     buildLabels(curLineData ? curLineData.features : []); if(wasOn) cur.labels.addTo(map); }
   updateSelPanel(); saveSettings();
