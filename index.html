@@ -583,6 +583,7 @@ function loadDong(code, dong, afterLoad){
   selected.clear(); updateSelPanel(); curCode=code; curDongName=dong;
   $('cur-dong').textContent='📍 '+dong;
   $('dong-badge').textContent=dong; $('dong-badge').style.display='block';
+  $('dong-select').value=code;   // 지도 클릭·검색 등 어떤 경로로 동이 열려도 드롭다운이 그 동을 가리키게
   setStatus(`${dong} 불러오는 중…`);
   // 클릭 즉시(페치 전) 목표 동으로 뷰를 점프시킨다 — manifest의 동 bounds 사용.
   // 무거운 필지 렌더가 항상 '최종 줌'에서만 일어나도록 보장해, 낮은 줌에서
