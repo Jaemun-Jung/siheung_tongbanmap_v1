@@ -17,7 +17,7 @@
  .leaflet-interactive:active,
  .leaflet-container svg path:focus,
  path.leaflet-interactive{ outline:none !important; }
- .panel{position:absolute;z-index:1000;top:10px;left:10px;width:280px;max-height:calc(100% - 20px);
+ .panel{position:absolute;z-index:1100;top:10px;left:10px;width:280px;max-height:calc(100% - 20px);
    overflow:auto;background:#fff;border-radius:12px;box-shadow:0 1px 8px rgba(0,0,0,.3);
    padding:12px 14px;font-size:13px}
  .panel h1{font-size:18px;font-weight:800;color:#1a2330;letter-spacing:-.2px;line-height:1.25;
@@ -123,6 +123,8 @@
    border-radius:26px;box-shadow:0 2px 10px rgba(0,0,0,.4);display:none;pointer-events:none}
  @media(max-width:640px){
    .panel{width:calc(100% - 20px);max-height:72%}
+   /* 패널이 열려 있을 땐(=지도가 거의 안 보일 때) 줌 +/- 버튼 숨김 → 패널 ✕와 겹쳐 안 닫히던 문제 해결 */
+   body:not(.nopanel) .leaflet-control-zoom{display:none}
  }
  /* ===== 인쇄: 지도를 종이 픽셀 크기로 고정 → 화면=인쇄 1:1(영역 어긋남 방지) ===== */
  #print-header{display:none}
