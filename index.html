@@ -50,6 +50,11 @@
  .legend{margin-top:8px;color:#555;font-size:11px;border-top:1px solid #eee;padding-top:6px}
  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:4px;vertical-align:middle}
  .hint{color:#888;font-size:10.5px;margin-top:3px;line-height:1.4}
+ details.adv{margin-top:9px}
+ details.adv>summary{list-style:none;cursor:pointer;font-size:11px;color:#8a93a0}
+ details.adv>summary::-webkit-details-marker{display:none}
+ details.adv>summary::before{content:"▸ ";color:#aaa}
+ details.adv[open]>summary::before{content:"▾ "}
  .selbar{margin-top:8px;border-top:1px solid #eee;padding-top:8px}
  .selhead{display:flex;justify-content:space-between;align-items:center;font-size:12px}
  .chips{display:flex;flex-wrap:wrap;gap:4px;margin-top:6px}
@@ -190,36 +195,31 @@
       </div>
       <div class="hint">일반·위성 모두 <b>브이월드(국토교통부)</b> 지도입니다. (브이월드가 일시 장애일 때만 자동으로 예비 일반지도로 대체)</div>
 
-      <label>경계 방식</label>
-      <div class="row tight" id="bmode">
-        <button class="b on" id="bm-parcel">필지별</button>
-        <button class="b" id="bm-clean">통별</button>
-      </div>
-      <div class="hint">필지별=지번 단위 · 통별=통을 한 면으로(상황판·출력용)</div>
-
-      <label>표시 항목</label>
+      <label>표시</label>
       <div class="row tight">
         <button class="b on" id="t-fill">면</button>
-        <button class="b" id="t-line">경계선</button>
         <button class="b on" id="t-parcelline">지적선</button>
         <button class="b on" id="t-label">통번호</button>
         <button class="b on" id="t-admin">동경계</button>
         <button class="b" id="t-dim">주변 어둡게</button>
         <button class="b" id="t-unassigned">미배정 대지</button><span class="help" id="help-unassigned">?</span>
       </div>
-      <div class="hint">'지적선'을 끄면 필지(지적) 격자가 사라져 통 색 블록만 깔끔하게 보입니다 · 통 클릭=단일 선택, Ctrl+클릭=다중 · '미배정 대지'=통 없는 대지 클릭해 지번 확인</div>
+      <div class="hint"><b>면</b> 끄면 윤곽선만 · <b>지적선</b> 끄면 통 색 블록만 깔끔하게 · <b>미배정 대지</b>=통 없는 대지 클릭해 지번 확인 · 통 클릭=선택(Ctrl+클릭=다중)</div>
 
-      <label>색상 / 스타일</label>
+      <label>색상</label>
       <div class="row tight" id="palettes">
         <button class="b" data-pal="default">기본</button>
         <button class="b" data-pal="pastel">파스텔</button>
         <button class="b" data-pal="vivid">원색</button>
         <button class="b" data-pal="gray">흑백</button>
       </div>
-      <div style="font-size:11px;color:#555;margin-top:7px">선 두께
-        <input type="range" id="lw" min="1" max="6" step="0.5" style="width:100%;margin-top:2px"></div>
-      <div style="font-size:11px;color:#555;margin-top:4px">채우기 투명도
-        <input type="range" id="fa" min="0.1" max="0.85" step="0.05" style="width:100%;margin-top:2px"></div>
+
+      <details class="adv"><summary>고급 (선 두께·투명도)</summary>
+        <div style="font-size:11px;color:#555;margin-top:6px">선 두께
+          <input type="range" id="lw" min="1" max="6" step="0.5" style="width:100%;margin-top:2px"></div>
+        <div style="font-size:11px;color:#555;margin-top:4px">채우기 투명도
+          <input type="range" id="fa" min="0.1" max="0.85" step="0.05" style="width:100%;margin-top:2px"></div>
+      </details>
 
       <div class="legend">
         <span><i style="background:#888"></i>별표 지번(법적 근거)</span> ·
@@ -861,14 +861,7 @@ let _resizeT; window.addEventListener('resize', ()=>{ clearTimeout(_resizeT);
   _resizeT=setTimeout(()=>map.invalidateSize(false), 200); });
 window.addEventListener('orientationchange', ()=> setTimeout(()=>map.invalidateSize(false), 300));
 $('overview-btn').onclick = showOverview;
-$('bm-clean').onclick = ()=> setBoundaryMode('clean');
-$('bm-parcel').onclick = ()=> setBoundaryMode('parcel');
-function setBoundaryMode(m){
-  boundaryMode=m;
-  $('bm-clean').classList.toggle('on', m==='clean');
-  $('bm-parcel').classList.toggle('on', m==='parcel');
-  if(cur.admin) renderBoundary();
-}
+// (경계 방식 필지별/통별 제거 — 항상 필지별. 깔끔히 보려면 '지적선' 토글을 끔)
 
 // ---------- 토글 ----------
 function applyToggles(){
@@ -904,8 +897,7 @@ function renderHoles(){
     }}).addTo(map);
 }
 function renderUnassigned(){ renderHoles(); }   // 호환용 별칭(미배정 대지 = 구멍 통합 레이어)
-$('t-fill').onclick = e=>{ mode='fill'; press(e.target,true); press($('t-line'),false); applyToggles(); };
-$('t-line').onclick = e=>{ mode='line'; press(e.target,true); press($('t-fill'),false); applyToggles(); };
+$('t-fill').onclick = e=>{ const on=!e.target.classList.contains('on'); press(e.target,on); mode=on?'fill':'line'; applyToggles(); };  // '면' 켜기/끄기(끄면 윤곽만)
 $('t-parcelline').onclick= e=>{ showParcelLines=!showParcelLines; press(e.target,showParcelLines); applyToggles(); };
 $('t-label').onclick= e=>{ press(e.target,!e.target.classList.contains('on')); applyToggles(); };
 $('t-admin').onclick= e=>{ press(e.target,!e.target.classList.contains('on')); applyToggles(); };
