@@ -1004,11 +1004,11 @@ function searchJibun(v){
       if(idx[dn+'|'+jb]) return go(dn+'|'+jb, `${dn} ${jb}`);
       const fb=Object.keys(idx).filter(k=>k.startsWith(dn+'|') && sameBon(k)).sort();   // 본번 보정
       if(fb.length) return go(fb[0], `${dn} ${jb} → ${fb[0].split('|')[1]}`);
-      setStatus(`"${dn} ${jb}" 별표에 없음(통 미상). 지번을 확인하세요.`); return;
+      tryUnassigned(dn, jb).then(found=>{ if(!found) setStatus(`"${dn} ${jb}" 별표·미배정에도 없음 — 폐번/지번 오기 확인.`); }); return;
     }
     let keys=Object.keys(idx).filter(k=>k.endsWith('|'+jb));     // 지번만 → 시 전체 검색
     if(!keys.length) keys=Object.keys(idx).filter(sameBon);      // 본번 보정
-    if(!keys.length){ setStatus(`"${jb}" 지번을 못 찾음. 법정동과 함께 입력해 보세요(예: 거모동 ${jb}).`); return; }
+    if(!keys.length){ tryUnassigned('', jb).then(found=>{ if(!found) setStatus(`"${jb}" 별표·미배정에도 없음. 법정동과 함께 입력해 보세요(예: 거모동 ${jb}).`); }); return; }
     keys.sort();
     if(keys.length===1) return go(keys[0], keys[0].replace('|',' '));
     const curK=keys.find(k=>idx[k][0]===curCode);              // 여러 곳이면 현재 동 우선
@@ -1061,10 +1061,66 @@ function searchAddress(kw){
     const key=m[1]+'|'+m[2];
     ensureIndex().then(idx=>{
       const hit=idx[key];
-      if(!hit){ $('res').innerHTML=`<b>${j.roadAddr}</b><br>${m[1]} ${m[2]} <small>— 별표에 없는 지번(통 미상)</small>`; setStatus(''); return; }
+      if(!hit){ tryUnassigned(m[1], m[2]).then(found=>{ if(!found){ $('res').innerHTML=`<b>${j.roadAddr}</b><br>${m[1]} ${m[2]} <small>— 별표·미배정에도 없음(폐번/확인)</small>`; setStatus(''); } }); return; }
       navToHit(hit, m[1], m[2], j.roadAddr);   // 정확 필지로 줌 + 핀 표시(지번 검색과 동일)
     });
   }).catch(e=> setStatus('주소 검색 실패: '+e));
+}
+// ===== 별표에서 못 찾은 주소 = 미배정 대지(별표 누락 의심) → 위치 핀 + 추정 통 + '넣기' =====
+let unIndex=null;
+function ensureUnIndex(){ return unIndex ? Promise.resolve(unIndex)
+  : fetch('out/unassigned_index.json').then(r=>r.json()).then(d=>(unIndex=d)).catch(()=>({})); }
+// 별표에서 못 찾으면 미배정 인덱스로 위치를 찾아 핀+추정을 띄움. 처리되면 true.
+function tryUnassigned(dn, jb){
+  return ensureUnIndex().then(un=>{
+    const bon=jb.split('-')[0];
+    const sameBon = k => { const j=k.split('|')[1]; return j===bon || j.startsWith(bon+'-'); };
+    let key=null;
+    if(dn){
+      if(un[dn+'|'+jb]) key=dn+'|'+jb;
+      else { const fb=Object.keys(un).filter(k=>k.startsWith(dn+'|') && sameBon(k)).sort(); if(fb.length) key=fb[0]; }
+    } else {
+      let keys=Object.keys(un).filter(k=>k.endsWith('|'+jb)); if(!keys.length) keys=Object.keys(un).filter(sameBon);
+      if(keys.length){ keys.sort(); key = keys.find(k=>un[k][0]===curCode) || keys[0]; }
+    }
+    if(!key) return false;
+    const [code,dong,lat,lon]=un[key], [b,j]=key.split('|');
+    navToUnassigned(code, dong, b, j, lat, lon); return true;
+  });
+}
+function navToUnassigned(code, dong, bjd, jib, lat, lon){
+  setStatus(`${dong} 불러오는 중…`);
+  loadDong(code, dong, ()=>{
+    const feat=(curUnassignedData&&curUnassignedData.features||[]).find(f=> String(f.properties.법정동)===bjd && String(f.properties.지번)===jib);
+    let plat=lat, plon=lon, predTxt='', tHat='', grade='';
+    if(feat){
+      try{ const c=_centroid(feat.geometry); plon=c[0]; plat=c[1]; }catch(e){}
+      try{ const r=predictOmittedTong(curParcelsData,{features:[feat]})[0];
+        tHat=r.추정통; grade=r.등급;
+        predTxt = (tHat!=='') ? `추정: <b>${tHat}통</b> <small>(${grade} ${r.신뢰도}%)</small>` : `추정: <small>불확실 — 통 직접 확인</small>`;
+      }catch(e){ predTxt='<small>추정 계산 실패</small>'; }
+    }
+    map.setView([plat,plon], 18, {animate:true});
+    const safe=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+    const btnT = (tHat!=='' && grade!=='불확실') ? tHat : '';
+    const btnLabel = btnT!=='' ? `✏️ 이 필지를 ${btnT}통으로 넣기(검토중)` : '✏️ 이 필지를 통에 넣기(검토중)';
+    const btn = feat ? `<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${btnT}')">${btnLabel}</button>` : '';
+    dropSearchMarker([plat,plon], `<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(별표 누락 의심)</span><br>통이 안 정해진 땅이에요. ${predTxt}${btn}</div>`, {autoPan:false});
+    $('res').innerHTML = `<b>${bjd} ${jib}</b> → <b>통 미배정</b> <small>(별표 누락 의심${tHat!==''?`, 추정 ${tHat}통`:''})</small>`;
+    setStatus('');
+  });
+}
+// 미배정 대지를 '실제 지적 경계 그대로' 추정 통에 검토중으로 넣기(전역 — 팝업 inline onclick)
+function assignOmitted(bjd, jib, t){
+  const feat=(curUnassignedData&&curUnassignedData.features||[]).find(f=> String(f.properties.법정동)===bjd && String(f.properties.지번)===jib);
+  if(!feat){ setStatus('필지를 찾지 못했어요. 다시 검색해 주세요.'); return; }
+  let tong=(t===''||t==null) ? prompt(`${bjd} ${jib}을(를) 넣을 통 번호:`) : t;
+  if(!tong || !/^\d+$/.test(String(tong).trim())){ setStatus('통 번호가 올바르지 않아 취소됨.'); return; }
+  tong=+String(tong).trim();
+  (manualData[curCode]=manualData[curCode]||[]).push({통:tong, reason:`미배정 대지(별표 누락 의심) ${bjd} ${jib}`, date:new Date().toISOString().slice(0,10), geometry:feat.geometry});
+  saveManual(); renderManual(); map.closePopup(); clearSearchMarker();
+  $('res').innerHTML = `<b>${bjd} ${jib}</b> → <b>${tong}통 (검토중)</b>에 넣음 — 빨간 점선으로 표시·이 브라우저에 저장됩니다.`;
+  setStatus('');
 }
 $('go').onclick = search;
 $('q').addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
