@@ -203,6 +203,7 @@
       <div class="row tight">
         <button class="b on" id="t-fill">면</button>
         <button class="b on" id="t-parcelline">지적선</button>
+        <button class="b on" id="t-tong">통경계</button>
         <button class="b on" id="t-label">통번호</button>
         <button class="b on" id="t-admin">동경계</button>
         <button class="b" id="t-dim">주변 어둡게</button>
@@ -877,6 +878,10 @@ function applyToggles(){
   if(cur.parcels){ cur.parcels.setStyle(pStyle); }
   toggleLayer(dimSurround, cur.dim);                 // '주변 어둡게' 마스크
   toggleLayer($('t-label').classList.contains('on'), cur.labels);
+  // 통 경계 on/off — casing(헤일로)도 함께. 끄면 면색·지적선만 남아 통 구분선이 사라짐(상황판·항공사진 위 등)
+  const tongOn = $('t-tong').classList.contains('on');
+  toggleLayer(tongOn, cur.tonghalo);     // 아래(casing) 먼저
+  toggleLayer(tongOn, cur.tong);         // 위(통선) 나중 → casing 위에 통선
   // 동경계: 흰 halo(아래) → 검정선(위) 순서로 올려야 검정 경계가 보인다.
   // (순서가 반대면 다시 켤 때 흰 halo가 검정선을 덮어 흰색만 보임)
   const adminOn = $('t-admin').classList.contains('on');
@@ -908,6 +913,7 @@ function renderHoles(){
 function renderUnassigned(){ renderHoles(); }   // 호환용 별칭(미배정 대지 = 구멍 통합 레이어)
 $('t-fill').onclick = e=>{ const on=!e.target.classList.contains('on'); press(e.target,on); mode=on?'fill':'line'; applyToggles(); };  // '면' 켜기/끄기(끄면 윤곽만)
 $('t-parcelline').onclick= e=>{ showParcelLines=!showParcelLines; press(e.target,showParcelLines); applyToggles(); };
+$('t-tong').onclick= e=>{ press(e.target,!e.target.classList.contains('on')); applyToggles(); };  // 통 경계선 켜기/끄기
 $('t-label').onclick= e=>{ press(e.target,!e.target.classList.contains('on')); applyToggles(); };
 $('t-admin').onclick= e=>{ press(e.target,!e.target.classList.contains('on')); applyToggles(); };
 $('t-dim').onclick= e=>{ dimSurround=!dimSurround; press(e.target,dimSurround); applyToggles(); };
