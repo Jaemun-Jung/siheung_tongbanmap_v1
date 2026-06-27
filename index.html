@@ -116,6 +116,8 @@
  .leaflet-popup-content .msinfo .msdraw{display:block;width:100%;margin-top:8px;border:1px solid #b9d4ea;
    background:#eef5fb;color:var(--blue);border-radius:8px;padding:7px 8px;font-size:13px;font-weight:700;cursor:pointer}
  .leaflet-popup-content .msinfo .msdraw:hover{background:#dfeaf6;border-color:var(--blue)}
+ .leaflet-popup-content .msinfo .msdraw.msalt{background:#f4f6f8;color:#55636e;border-color:#d3d9df;font-weight:600}
+ .leaflet-popup-content .msinfo .msdraw small{font-weight:600;opacity:.85}
  .src{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;margin-top:6px}
  .src-byp{background:#e2efda;color:#2e6b1f}    /* 별표 직접 = 확실(초록) */
  .src-road{background:#eceff1;color:#546e7a}   /* 도로 보정 = 중립(회색) */
@@ -1094,21 +1096,12 @@ function navToUnassigned(code, dong, bjd, jib, lat, lon){
   setStatus(`${dong} 불러오는 중…`);
   loadDong(code, dong, ()=>{
     const feat=(curUnassignedData&&curUnassignedData.features||[]).find(f=> String(f.properties.법정동)===bjd && String(f.properties.지번)===jib);
-    let plat=lat, plon=lon, predTxt='', tHat='', grade='';
-    if(feat){
-      try{ const c=_centroid(feat.geometry); plon=c[0]; plat=c[1]; }catch(e){}
-      try{ const r=predictOmittedTong(curParcelsData,{features:[feat]})[0];
-        tHat=r.추정통; grade=r.등급;
-        predTxt = (tHat!=='') ? `추정: <b>${tHat}통</b> <small>(${grade} ${r.신뢰도}%)</small>` : `추정: <small>불확실 — 통 직접 확인</small>`;
-      }catch(e){ predTxt='<small>추정 계산 실패</small>'; }
-    }
+    let plat=lat, plon=lon;
+    if(feat){ try{ const c=_centroid(feat.geometry); plon=c[0]; plat=c[1]; }catch(e){} }
     map.setView([plat,plon], 18, {animate:true});
-    const safe=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-    const btnT = (tHat!=='' && grade!=='불확실') ? tHat : '';
-    const btnLabel = btnT!=='' ? `✏️ 이 필지를 ${btnT}통으로 넣기(검토중)` : '✏️ 이 필지를 통에 넣기(검토중)';
-    const btn = feat ? `<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${btnT}')">${btnLabel}</button>` : '';
-    dropSearchMarker([plat,plon], `<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(별표 누락 의심)</span><br>통이 안 정해진 땅이에요. ${predTxt}${btn}</div>`, {autoPan:false});
-    $('res').innerHTML = `<b>${bjd} ${jib}</b> → <b>통 미배정</b> <small>(별표 누락 의심${tHat!==''?`, 추정 ${tHat}통`:''})</small>`;
+    if(feat){ const info=buildHoleInfo(feat); dropSearchMarker([plat,plon], info.html, {autoPan:false}); $('res').innerHTML=info.res; }
+    else { dropSearchMarker([plat,plon], `<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(별표 누락 의심)</span><br>이 동에서 해당 필지를 못 찾았어요.</div>`, {autoPan:false});
+      $('res').innerHTML=`<b>${bjd} ${jib}</b> → <b>통 미배정</b> <small>(별표 누락 의심)</small>`; }
     setStatus('');
   });
 }
@@ -1124,19 +1117,23 @@ function assignOmitted(bjd, jib, t){
   $('res').innerHTML = `<b>${bjd} ${jib}</b> → <b>${tong}통 (검토중)</b>에 넣음 — 빨간 점선으로 표시·이 브라우저에 저장됩니다.`;
   setStatus('');
 }
-// 미배정 대지(구멍) 클릭 공용 — 추정 통 계산 + 팝업 html + #res 텍스트(검색 핀과 동일 형태)
+// 미배정 대지(구멍) 클릭/검색 공용 — 후보 통 계산 + 팝업 html + #res 텍스트.
+// 주변에 통이 여럿이면 각 통을 '선택 버튼'으로, 도로만 닿으면 확정 안 하고 직접 확인 유도.
 function buildHoleInfo(f){
   const p=f.properties||{}, bjd=String(p.법정동||''), jib=String(p.지번||'');
-  let tHat='', grade='', predTxt='';
-  try{ const r=predictOmittedTong(curParcelsData,{features:[f]})[0];
-    tHat=r.추정통; grade=r.등급;
-    predTxt=(tHat!=='')?`추정: <b>${tHat}통</b> <small>(${grade} ${r.신뢰도}%)</small>`:`추정: <small>불확실 — 통 직접 확인</small>`;
-  }catch(e){ predTxt='<small>추정 계산 실패</small>'; }
+  let row=null; try{ row=predictOmittedTong(curParcelsData,{features:[f]})[0]; }catch(e){}
+  const cands=(row&&row.후보)||[], roadOnly=!!(row&&row.roadOnly);
   const safe=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
-  const btnT=(tHat!=='' && grade!=='불확실')?tHat:'';
-  const lbl=btnT!==''?`✏️ 이 필지를 ${btnT}통으로 넣기(검토중)`:'✏️ 이 필지를 통에 넣기(검토중)';
-  const html=`<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(${p.지목||'대'} · 별표 누락 의심)</span><br>통이 안 정해진 땅이에요. ${predTxt}<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${btnT}')">${lbl}</button></div>`;
-  const res=`<b>${bjd} ${jib}</b> → <b>통 미배정</b> <small>(별표 누락 의심${tHat!==''?`, 추정 ${tHat}통`:''})</small>`;
+  let predTxt, btns;
+  if(!cands.length){ predTxt='<small>접한 통 없음 — 통 직접 확인</small>';
+    btns=`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 통에 넣기(검토중)</button>`; }
+  else if(roadOnly){ predTxt=`<small>도로만 인접(주변 ${cands.map(c=>c.통+'통').join('·')}) — 통 직접 확인</small>`;
+    btns=`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 통에 넣기(검토중)</button>`; }
+  else { predTxt='주변 통: '+cands.map(c=>`<b>${c.통}통</b> <small>${c.pct}%</small>`).join(' · ')+(cands.length>=2?' <small>— 골라 넣으세요</small>':'');
+    btns=cands.map(c=>`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${c.통}')">✏️ ${c.통}통으로 넣기 <small>(${c.pct}%)</small></button>`).join('')
+       + `<button class="msdraw msalt" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 다른 통으로…</button>`; }
+  const html=`<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(${p.지목||'대'} · 별표 누락 의심)</span><br>통이 안 정해진 땅이에요. ${predTxt}${btns}</div>`;
+  const res=`<b>${bjd} ${jib}</b> → <b>통 미배정</b> <small>(별표 누락 의심${(cands.length&&!roadOnly)?`, 주변 ${cands.map(c=>c.통+'통').join('·')}`:''})</small>`;
   return {html, res};
 }
 $('go').onclick = search;
@@ -1260,41 +1257,51 @@ function _sampleBoundary(g,n){ const segs=[]; let total=0;
   if(!total) return []; const step=total/n,out=[]; let acc=0,target=step/2;
   for(const [a,b,L] of segs){ while(target<=acc+L && out.length<n){ const t=(target-acc)/L; out.push([a[0]+(b[0]-a[0])*t, a[1]+(b[1]-a[1])*t]); target+=step; } acc+=L; } return out; }
 function predictOmittedTong(parcels, unassigned){
-  const A=[]; (parcels.features||[]).forEach(f=>{ if(!f.properties||f.properties.통==null) return; A.push({g:f.geometry, bb:_bbox(f.geometry), t:+f.properties.통}); });
+  // 배정 필지: 통 + '도로 여부'(도로 보정 필지=약한 근거). 도로의 통이 옆 대지로 잘못 옮겨붙는 것 방지.
+  const A=[]; (parcels.features||[]).forEach(f=>{ if(!f.properties||f.properties.통==null) return;
+    A.push({g:f.geometry, bb:_bbox(f.geometry), t:+f.properties.통, rd:road(f)}); });
   const CELL=0.0006, grid=new Map(), key=(cx,cy)=>cx+'_'+cy;
   A.forEach((a,i)=>{ const x0=Math.floor(a.bb[0]/CELL),x1=Math.floor(a.bb[2]/CELL),y0=Math.floor(a.bb[1]/CELL),y1=Math.floor(a.bb[3]/CELL);
     for(let cx=x0;cx<=x1;cx++)for(let cy=y0;cy<=y1;cy++){ const k=key(cx,cy); if(!grid.has(k))grid.set(k,[]); grid.get(k).push(i); } });
-  function tongAt(x,y){ const cx=Math.floor(x/CELL),cy=Math.floor(y/CELL);
+  function neighAt(x,y){ const cx=Math.floor(x/CELL),cy=Math.floor(y/CELL);
     for(let dx=-1;dx<=1;dx++)for(let dy=-1;dy<=1;dy++){ const arr=grid.get(key(cx+dx,cy+dy)); if(!arr)continue;
-      for(const i of arr){ const a=A[i]; if(x<a.bb[0]||x>a.bb[2]||y<a.bb[1]||y>a.bb[3])continue; if(_pip(x,y,a.g)) return a.t; } } return null; }
+      for(const i of arr){ const a=A[i]; if(x<a.bb[0]||x>a.bb[2]||y<a.bb[1]||y>a.bb[3])continue; if(_pip(x,y,a.g)) return a; } } return null; }
   const PUSH=0.00006, rows=[];
   (unassigned.features||[]).forEach(f=>{ const g=f.geometry, c=_centroid(g), samples=_sampleBoundary(g,28);
-    const tally={}; let hits=0;
-    samples.forEach(p=>{ let dx=p[0]-c[0],dy=p[1]-c[1]; const d=Math.hypot(dx,dy)||1; const t=tongAt(p[0]+dx/d*PUSH, p[1]+dy/d*PUSH); if(t!=null){ tally[t]=(tally[t]||0)+1; hits++; } });
-    let best=null,bestN=0; for(const t in tally){ if(tally[t]>bestN){ bestN=tally[t]; best=+t; } }
-    const dom=hits?bestN/hits:0; let grade, note='';
-    if(best==null){ grade='불확실'; note='접한 통 없음(외딴·도로변)'; }
+    const land={}, rdT={}; let landHits=0, rdHits=0;          // 대지(별표 직접) 이웃 / 도로 이웃 별도 집계
+    samples.forEach(p=>{ let dx=p[0]-c[0],dy=p[1]-c[1]; const d=Math.hypot(dx,dy)||1; const a=neighAt(p[0]+dx/d*PUSH, p[1]+dy/d*PUSH);
+      if(a){ if(a.rd){ rdT[a.t]=(rdT[a.t]||0)+1; rdHits++; } else { land[a.t]=(land[a.t]||0)+1; landHits++; } } });
+    const useLand=landHits>0, tally=useLand?land:rdT, hits=useLand?landHits:rdHits;   // 대지가 하나라도 있으면 도로는 무시
+    const cands=Object.entries(tally).map(([t,n])=>({통:+t, n, pct:Math.round(n/Math.max(1,hits)*100)})).sort((a,b)=>b.n-a.n);
+    const roadOnly = !useLand && rdHits>0;
+    const multi = useLand && cands.length>=2 && cands[1].pct>=20;   // 둘째 후보도 20%↑ = 여러 통 경쟁(담당자 선택)
+    let grade, note='', best=(cands[0] && !roadOnly) ? cands[0].통 : '';
+    if(!cands.length){ grade='불확실'; note='접한 통 없음(외딴)'; }
+    else if(roadOnly){ grade='불확실'; note='도로만 인접 — 통 직접 확인'; }
     else if(hits<3){ grade='불확실'; note='접점 적음 — 직접 확인'; }
-    else if(dom>=0.8) grade='유력';
-    else if(dom>=0.5){ grade='참고'; note='우세하나 확인 권장'; }
-    else { grade='불확실'; note='두 통 사이 — 직접 확인'; }
+    else if(multi){ grade='참고'; note='여러 통 인접 — 담당자 선택'; }
+    else if(cands[0].pct>=80) grade='유력';
+    else if(cands[0].pct>=50){ grade='참고'; note='우세하나 확인 권장'; }
+    else { grade='불확실'; note='경계 — 직접 확인'; }
+    const candStr = cands.slice(0,3).map(c=>`${c.통}통(${c.pct}%)`).join(' · ')+(roadOnly?' (도로변)':'');
     rows.push({법정동:f.properties.법정동||'', 지번:f.properties.지번||'', 지목:f.properties.지목||'대',
-      추정통: best!=null?best:'', 신뢰도:Math.round(dom*100), 둘러쌈:Math.round(hits/Math.max(1,samples.length)*100), 등급:grade, 비고:note}); });
+      추정통: best, 후보: cands.slice(0,3), 후보표시: candStr, roadOnly,
+      신뢰도: cands[0]?cands[0].pct:0, 둘러쌈:Math.round((landHits+rdHits)/Math.max(1,samples.length)*100), 등급:grade, 비고:note}); });
   rows.sort((a,b)=> (a.추정통===''?1e9:a.추정통)-(b.추정통===''?1e9:b.추정통) || b.신뢰도-a.신뢰도 || String(a.지번).localeCompare(String(b.지번),'ko',{numeric:true}));
   return rows;
 }
 const GRADE_FILL={유력:'C6EFCE', 참고:'FFEB9C', 불확실:'F2F2F2'};
 function downloadOmitXlsx(rows, dongLabel, filename){
   if(typeof XLSX==='undefined'){ setOmitStatus('엑셀 모듈 로딩 중 — 잠시 후 다시 누르세요.'); return; }
-  const head=['행정동','법정동','지번','지목','추정 통','신뢰도(%)','둘러쌈(%)','등급','검토(O/X)','맞는 통','비고'];
-  const aoa=[head, ...rows.map(r=>[r.행정동||dongLabel, r.법정동, r.지번, r.지목, r.추정통, r.신뢰도, r.둘러쌈, r.등급, '', '', r.비고||''])];
+  const head=['행정동','법정동','지번','지목','추정 통','후보(주변통)','신뢰도(%)','둘러쌈(%)','등급','검토(O/X)','맞는 통','비고'];
+  const aoa=[head, ...rows.map(r=>[r.행정동||dongLabel, r.법정동, r.지번, r.지목, r.추정통, r.후보표시||'', r.신뢰도, r.둘러쌈, r.등급, '', '', r.비고||''])];
   const ws=XLSX.utils.aoa_to_sheet(aoa);
-  ws['!cols']=[{wch:9},{wch:9},{wch:12},{wch:6},{wch:8},{wch:9},{wch:9},{wch:8},{wch:10},{wch:8},{wch:18}];
+  ws['!cols']=[{wch:9},{wch:9},{wch:12},{wch:6},{wch:8},{wch:18},{wch:9},{wch:9},{wch:8},{wch:10},{wch:8},{wch:18}];
   const range=XLSX.utils.decode_range(ws['!ref']);
   for(let R=range.s.r;R<=range.e.r;R++) for(let C=range.s.c;C<=range.e.c;C++){
     const cell=ws[XLSX.utils.encode_cell({r:R,c:C})]; if(!cell) continue;
     cell.s = R===0 ? {font:{bold:true},fill:{fgColor:{rgb:'D9E1F2'}},alignment:{horizontal:'center'}} : {alignment:{horizontal:'center'}};
-    if(R>0 && C===7){ const fl=GRADE_FILL[cell.v]; if(fl) cell.s={fill:{fgColor:{rgb:fl}},font:{bold:true},alignment:{horizontal:'center'}}; }
+    if(R>0 && C===8){ const fl=GRADE_FILL[cell.v]; if(fl) cell.s={fill:{fgColor:{rgb:fl}},font:{bold:true},alignment:{horizontal:'center'}}; }   // 등급 칸(후보 컬럼 추가로 8번)
   }
   ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:0,c:head.length-1}})};
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '누락추정'); XLSX.writeFile(wb, filename);
