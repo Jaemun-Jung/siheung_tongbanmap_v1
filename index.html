@@ -69,9 +69,14 @@
  .issues summary{cursor:pointer;color:var(--blue)}
  .issues ul{margin:4px 0 0;padding-left:16px}
  .issues li{margin:2px 0;color:#555}
- .issues li.misshit{cursor:pointer;color:var(--blue)}
- .issues li.misshit:hover{text-decoration:underline;background:#eef4fb}
- .issues .goto{opacity:.55;font-size:10px}
+ .issues ul.misslist{padding-left:0;list-style:none}
+ .issues ul.misslist li{display:flex;align-items:center;gap:7px;padding:3px 6px;border-radius:6px;margin:1px 0}
+ .issues li.misshit{cursor:pointer}
+ .issues li.misshit:hover{background:#eef4fb}
+ .issues .ms-t{font-weight:700;color:#2c3e50;flex:none}
+ .issues .ms-why{color:#666;flex:1 1 auto;min-width:0}
+ .issues li.misshit .goto{flex:none;color:var(--blue);font-weight:600;font-size:10.5px;white-space:nowrap}
+ .issues li.misshit:hover .goto{text-decoration:underline}
  .issues .rev summary{color:#b03a2e;font-weight:600}
  .gr{display:inline-block;padding:0 5px;border-radius:8px;font-size:10px;font-weight:700;color:#fff}
  .g-jibun{background:#c0392b}
@@ -495,10 +500,11 @@ function showIssues(code){
   let h=`<span class="big">${v.dong} ${v.n_table}통 중 <b>${v.n_drawn}통</b> 표시</span>`;
   if(v.n_missing>0){
     h+=` <span class="warn">· 미표시 ${v.n_missing}통</span>${helpQ('missing')}`+
-       `<details><summary>미표시 통 ${v.n_missing}개 보기</summary><ul>`+
-       v.missing.map(m=> m.loc
-          ? `<li class="misshit" data-lat="${m.loc[0]}" data-lon="${m.loc[1]}" data-t="${m.통}" ${m.approx?'data-approx="1"':''} title="클릭하면 위치로 이동">${m.통}통 — ${m.사유} <span class="goto">${m.approx?'≈':'↗'}</span></li>`
-          : `<li>${m.통}통 — ${m.사유}</li>`).join('')+`</ul></details>`;
+       `<details><summary>미표시 통 ${v.n_missing}개 보기</summary><ul class="misslist">`+
+       v.missing.map(m=>{ const why=(m.사유||'').split(/\s*[—–]\s*/)[0]||'지도 미표시';
+          return m.loc
+          ? `<li class="misshit" data-lat="${m.loc[0]}" data-lon="${m.loc[1]}" data-t="${m.통}" ${m.approx?'data-approx="1"':''} title="클릭하면 지도에서 위치를 보여줍니다"><span class="ms-t">${m.통}통</span><span class="ms-why">${why}</span><span class="goto">${m.approx?'대략 위치':'위치 보기'} ›</span></li>`
+          : `<li class="ms-flat"><span class="ms-t">${m.통}통</span><span class="ms-why">${why}</span></li>`; }).join('')+`</ul></details>`;
   }
   // 담당자 데이터 점검용(멀리 떨어진 필지·누락 대지·충돌·미배정) → 접이식으로 묶어 일반 화면에선 숨김
   const rv=reviewData[code];
