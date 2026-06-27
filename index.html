@@ -910,6 +910,8 @@ $('t-unassigned').onclick= e=>{ press(e.target,!e.target.classList.contains('on'
 // ---------- 지번 검색 ----------
 function search(){
   const v=$('q').value.trim(); if(!v){ setStatus('검색어를 입력하세요.'); return; }
+  // 순수 지번(예 '배곧동 292-2', '1882-1')이면 아파트 검색에 가로채이지 않게 지번 검색으로 보낸다.
+  if(/^\s*(\S*?[동리])?\s*산?\d+(?:-\d+)?\s*$/.test(v)){ searchJibun(v); return; }
   if(searchApartment(v)) return;               // 아파트명(+동) → 통/반 (지도에 없어도 조회)
   if(/[로길]/.test(v)) searchAddress(v);      // 도로명주소 → juso
   else searchJibun(v);                         // 지번

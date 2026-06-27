@@ -84,6 +84,10 @@ def main():
             continue
         for r in csv.DictReader(open(csvp, encoding="utf-8-sig")):
             txt = str(r.get("관할구역", "")).strip()
+            # "배곧1동 중 1통~31통 제외" 같은 '행정동 나머지(catch-all) 통' 정의는 아파트가 아님
+            # (DONG_TOK이 '배곧1동'의 '1동'을 건물 동으로 오인) → 아파트 추출에서 제외.
+            if "제외" in txt and re.search(r"\d+\s*통", txt):
+                continue
             firsts = [mm.start() for rx in (DONG_TOK, DONG_KOR, DONG_ALPHA)
                       for mm in [rx.search(txt)] if mm]   # 첫 동(숫자/한글/알파벳) 위치 = 이름 경계
             if not firsts:
