@@ -659,8 +659,9 @@ function renderBoundary(){
       $('res').innerHTML=txt; const m=e.originalEvent;
       if(m.ctrlKey||m.metaKey||m.shiftKey) toggleTong(p.통); else selectSingle(p.통); });
     l.on('contextmenu', e=>{ L.DomEvent.preventDefault(e); $('res').innerHTML=txt; toggleTong(p.통); });
-    // 마우스 올린 필지를 살짝 진하게 — 어느 필지를 가리키는지 바로 보이게(구멍 필지와 동일한 방식)
-    l.on('mouseover', ()=> l.setStyle({weight:2.4, fillOpacity:0.82}));
+    // 마우스 올린 필지 강조 — 면색은 기본보다 '살짝만'(아래 지도 안 가리게), 외곽선으로 또렷이
+    l.on('mouseover', ()=>{ const b=pStyle(f).fillOpacity||0;
+      l.setStyle({weight:2.8, fillOpacity:Math.min(0.85, b+0.12)}); });
     l.on('mouseout',  ()=> l.setStyle(pStyle(f)));
   }}).addTo(map);
   curParcels = cur.parcels;
