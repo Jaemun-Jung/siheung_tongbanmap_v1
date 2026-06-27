@@ -333,6 +333,7 @@ function setBasemap(name){
     try{ localStorage.setItem('tongban_basemap', name); }catch(e){}
   }
   try{ if(ov && ov.city) ov.city.setStyle({color:cityLineColor()}); }catch(e){}   // 배경 바꾸면 시 경계색도 즉시 갱신
+  try{ if(cur && cur.tong) cur.tong.setStyle(tongStyle); }catch(e){}              // 동 상세 통 경계색도 배경(일반/위성)에 맞춰 즉시 갱신
   document.querySelectorAll('#basemaps button').forEach(b=> b.classList.toggle('on', b.dataset.base===name));
 }
 document.querySelectorAll('#basemaps button').forEach(b=> b.onclick=()=> setBasemap(b.dataset.base));
@@ -399,9 +400,10 @@ const pStyle = f => { const t=f.properties.통, a=approx(f), rd=road(f), mn=manu
     weight: hideLine?0:(mn?2:(on?2.5:(a?2:(rd?0.6:1)))), dashArray:(mn||a)?'5 4':null,
     fillOpacity: mode==='fill' ? (dim?0.06:(on?0.62:(mn?settings.fillAlpha*0.72:(a?settings.fillAlpha*0.66:(rd?settings.fillAlpha*0.62:settings.fillAlpha))))) : (on?0.18:0),
     opacity: hideLine?0:(mode==='fill' ? (dim?0.25:(on?1:(mn?0.95:(a?0.95:(rd?0.5:0.6))))) : (dim?0.25:0.9)) }; };
-const TONG_LINE='#333';                      // 통 경계선: 채우기와 대비되는 어두운 중립색
+// 통 경계선 색: 일반(밝은 배경)은 어두운 먹색, 위성(어두운 항공사진)은 또렷한 흰색(시 경계 황색과도 구분)
+function tongLineColor(){ return curBaseName==='sat' ? '#ffffff' : '#333'; }
 const tongStyle = f => { const mn=manualF(f); const on=selected.has(f.properties.통), dim=selActive()&&!on;
-  return { color: mn?MANUAL_COL:TONG_LINE, weight:on?settings.lineWeight+2:settings.lineWeight,
+  return { color: mn?MANUAL_COL:tongLineColor(), weight:on?settings.lineWeight+2:settings.lineWeight,
     dashArray:(mn||approx(f))?'5 4':null, fill:false, opacity: dim?0.35:0.95 }; };
 
 // ---------- 상태 ----------
