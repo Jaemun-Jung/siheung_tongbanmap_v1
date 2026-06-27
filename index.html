@@ -112,6 +112,9 @@
  .leaflet-popup-content .msinfo{font-size:14.5px;line-height:1.7}
  .leaflet-popup-content .msinfo .t{font-size:18px;color:var(--blue)}
  .leaflet-popup-content .msinfo .d{color:#999;font-size:12px}
+ .leaflet-popup-content .msinfo .msdraw{display:block;width:100%;margin-top:8px;border:1px solid var(--blue);
+   background:var(--blue);color:#fff;border-radius:8px;padding:7px 8px;font-size:13px;font-weight:700;cursor:pointer}
+ .leaflet-popup-content .msinfo .msdraw:hover{filter:brightness(1.08)}
  .src{display:inline-block;font-size:11px;font-weight:600;padding:2px 8px;border-radius:6px;margin-top:6px}
  .src-byp{background:#e2efda;color:#2e6b1f}    /* 별표 직접 = 확실(초록) */
  .src-road{background:#eceff1;color:#546e7a}   /* 도로 보정 = 중립(회색) */
@@ -497,10 +500,10 @@ $('issues').addEventListener('click', e=>{
   // autoPan:false → 팝업이 화면을 밀지 않아 핀이 가운데 그대로
   if(approx){   // 정확 위치 미상(은계 블록·산업단지·메모 등) → 동 영역으로
     map.setView([lat,lon], 14, {animate:true});
-    dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>이 통의 정확한 위치는 자동으로 못 잡았어요.<br>대략 <b>이 동(洞) 안</b>에 있습니다. 별표의 단지·블록명으로 확인하세요.</div>`, {autoPan:false});
+    dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>이 통의 정확한 위치는 자동으로 못 잡았어요.<br>대략 <b>이 동(洞) 안</b>에 있습니다. 별표의 단지·블록명으로 확인하세요.<button class="msdraw" onclick="startDrawFor(${t})">✏️ 이 ${t}통 경계 직접 그리기</button></div>`, {autoPan:false});
   } else {      // 정확 위치 — 화면 정중앙으로
     map.setView([lat,lon], 18, {animate:true});
-    dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>아파트를 동별로 나눈 통이에요.<br>• <b>아파트 이름+동</b>으로 검색하면 통·반이 나와요.<br>• 경계를 직접 그리려면 왼쪽 <b>‘통 경계 직접 그리기’</b>를 쓰세요.</div>`, {autoPan:false});
+    dropSearchMarker([lat,lon], `<div class="msinfo"><b class="t">${t}통</b> <span class="d">(지도 미표시)</span><br>아파트를 동별로 나눈 통이에요.<br>• <b>아파트 이름+동</b>으로 검색하면 통·반이 나와요.<button class="msdraw" onclick="startDrawFor(${t})">✏️ 이 ${t}통 경계 직접 그리기</button></div>`, {autoPan:false});
   }
 });
 function showCityIssues(){
@@ -1317,10 +1320,11 @@ function carveBase(baseFeats, mfeats){
 map.on('pm:create', e=>{
   const gj = e.layer.toGeoJSON(); map.removeLayer(e.layer);
   map.pm.disableDraw(); setDrawUI(false);
-  if(!curCode){ setStatus('동을 먼저 선택하세요.'); return; }
-  const t = prompt('그릴 통 번호를 입력하세요:');
-  if(!t || !/^\d+$/.test(t.trim())){ setStatus('통 번호가 올바르지 않아 취소됨.'); return; }
-  const reason = prompt('근거/메모 (선택):', '도로 기준 추정') || '';
+  if(!curCode){ setStatus('동을 먼저 선택하세요.'); pendingDrawTong=null; return; }
+  const t = pendingDrawTong!=null ? String(pendingDrawTong) : prompt('그릴 통 번호를 입력하세요:');
+  pendingDrawTong = null;                                  // 1회용 — 사용 후 초기화
+  if(!t || !/^\d+$/.test(String(t).trim())){ setStatus('통 번호가 올바르지 않아 취소됨.'); return; }
+  const reason = prompt('근거/메모 (선택):', '미표시 통 직접 그림') || '';
   (manualData[curCode] = manualData[curCode] || []).push(
     { 통:+t, reason, date:new Date().toISOString().slice(0,10), geometry:gj.geometry });
   saveManual(); renderManual();
@@ -1332,13 +1336,22 @@ function setDrawUI(on){
   $('draw-tong').textContent = on ? '■ 그리기 중…' : '✏️ 통 그리기';
   $('draw-controls').style.display = on ? 'flex' : 'none';
 }
+let pendingDrawTong=null;   // 미표시 통 안내창에서 '이 통 그리기'로 시작 시 통 번호 미리 지정(완료 때 재입력 생략)
 function startDraw(){
   if(!curCode){ setStatus('동을 먼저 선택하세요.'); return; }
   map.pm.enableDraw('Polygon',{snappable:true,finishOn:'dblclick'});
   setDrawUI(true);
   setStatus('클릭=점 · 더블클릭=완료 · Backspace=마지막 점 취소 · ESC=처음부터/취소');
 }
-function cancelDraw(){ map.pm.disableDraw(); setDrawUI(false); setStatus('그리기 취소됨.'); }
+// 미표시 통 안내창의 '✏️ 이 N통 경계 직접 그리기' 버튼이 호출(전역 — 팝업 inline onclick에서 접근)
+function startDrawFor(t){
+  if(!curCode){ setStatus('동을 먼저 선택하세요.'); return; }
+  map.closePopup(); clearSearchMarker();
+  pendingDrawTong = t;
+  startDraw();
+  setStatus(`${t}통 경계를 그리세요 — 클릭=점, 더블클릭=완료. (통 번호는 자동 입력됨)`);
+}
+function cancelDraw(){ pendingDrawTong=null; map.pm.disableDraw(); setDrawUI(false); setStatus('그리기 취소됨.'); }
 function undoLastVertex(){
   const dp = drawing && map.pm.Draw && map.pm.Draw.Polygon;
   if(dp && dp._enabled && dp._markers && dp._markers.length){
