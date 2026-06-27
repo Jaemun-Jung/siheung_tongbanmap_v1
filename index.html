@@ -242,7 +242,7 @@
   </details>
 
   <details class="sec">
-    <summary>📄 별표 누락 통 추정 내려받기</summary>
+    <summary>📄 별표누락통 내려받기(추정)</summary>
     <div class="secbody">
       <div class="row tight">
         <button class="b" id="omit-this">📄 이 동 추정</button>
@@ -607,6 +607,7 @@ function loadDong(code, dong, afterLoad){
   $('cur-dong').textContent='📍 '+dong;
   $('dong-badge').textContent=dong; $('dong-badge').style.display='block';
   $('dong-select').value=code;   // 지도 클릭·검색 등 어떤 경로로 동이 열려도 드롭다운이 그 동을 가리키게
+  setOmitStatus('');             // 옛 '○○동 N건 내려받음' 문구 초기화(다른 동으로 바뀌면 혼동 방지)
   setStatus(`${dong} 불러오는 중…`);
   // 클릭 즉시(페치 전) 목표 동으로 뷰를 점프시킨다 — manifest의 동 bounds 사용.
   // 무거운 필지 렌더가 항상 '최종 줌'에서만 일어나도록 보장해, 낮은 줌에서
@@ -1224,7 +1225,7 @@ function downloadOmitXlsx(rows, dongLabel, filename){
   ws['!autofilter']={ref:XLSX.utils.encode_range({s:{r:0,c:0},e:{r:0,c:head.length-1}})};
   const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, '누락추정'); XLSX.writeFile(wb, filename);
 }
-function setOmitStatus(msg){ const e=$('omit-status'); if(!e) return; if(!msg){ e.style.display='none'; return; } e.style.display='block'; e.textContent=msg; }
+function setOmitStatus(msg){ const e=$('omit-status'); if(!e) return; if(!msg){ e.style.display='none'; e.textContent=''; return; } e.style.display='block'; e.textContent=msg; }
 $('omit-this').onclick = ()=>{
   if(!curCode || !curParcelsData){ setOmitStatus('동을 먼저 선택하세요.'); return; }
   if(!curUnassignedData || !(curUnassignedData.features||[]).length){ setOmitStatus('이 동에는 미배정 대지가 없습니다.'); return; }
