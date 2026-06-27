@@ -555,7 +555,7 @@ function renderDongList(dongs){
   [...dongs].sort((a,b)=> dongRank(a.dong)-dongRank(b.dong) || a.dong.localeCompare(b.dong))
     .forEach(d=>{ const o=document.createElement('option');
       o.value=d.code; o.textContent=d.dong; o.dataset.dong=d.dong; sel.appendChild(o); });
-  sel.onchange = ()=>{ const o=sel.selectedOptions[0]; if(o && o.dataset.dong) loadDong(o.value, o.dataset.dong); };
+  sel.onchange = ()=>{ const o=sel.selectedOptions[0]; if(o && o.dataset.dong){ clearSearchBox(); loadDong(o.value, o.dataset.dong); } };
 }
 // 현재 동의 통 목록 → 통 드롭다운 채움(동 선택 시)
 function populateTongSelect(){
@@ -568,10 +568,13 @@ function populateTongSelect(){
       return `<option value="${t}">${t}통${onlyMan?' (검토중)':''}</option>`; }).join('');
   sel.style.display = tongs.length ? 'block' : 'none';
 }
+// 검색창+검색핀 초기화 — 다른 통/동을 '직접' 고르면 옛 검색 주소가 잔존해 오해되는 것 방지(검색 경로에선 호출 안 함)
+function clearSearchBox(){ const q=$('q'); if(q) q.value=''; clearSearchMarker(); }
 // 통 선택 → 강조 + 그 통으로 줌
 function gotoTong(t){
   if(t===''||t==null) return;
-  t=+t; selectSingle(t);
+  t=+t; clearSearchBox(); selectSingle(t);
+  $('res').innerHTML = `<b>${curDongName} ${t}통</b> 선택됨 — 통 안의 필지를 클릭하면 통·반이 나옵니다.`;
   const b=L.latLngBounds([]);
   if(cur.parcels) cur.parcels.eachLayer(l=>{ if(+l.feature.properties.통===t) b.extend(l.getBounds()); });
   if(b.isValid()) map.fitBounds(b.pad(0.25),{maxZoom:17});
@@ -682,6 +685,7 @@ function renderBoundary(){
       : `${p.법정동} ${p.지번}<br><b>${dn}${p.통}통 ${p.반}반</b>${BYP}`;
     l.bindPopup(txt);
     l.on('click', e=>{ if(drawing) return;       // 그리기 중엔 끼어들지 않음(점 찍기 양보)
+      clearSearchBox();                            // 다른 필지를 직접 클릭하면 옛 검색 주소/핀 정리(오해 방지)
       $('res').innerHTML=txt; const m=e.originalEvent;
       if(m.ctrlKey||m.metaKey||m.shiftKey) toggleTong(p.통); else selectSingle(p.통); });
     l.on('contextmenu', e=>{ L.DomEvent.preventDefault(e); $('res').innerHTML=txt; toggleTong(p.통); });
