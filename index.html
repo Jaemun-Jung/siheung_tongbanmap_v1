@@ -888,10 +888,10 @@ function renderHoles(){
                   : {color:'#37474f',weight:1,dashArray:'3 3',fillColor:'#90a4ae',fillOpacity:.28,opacity:.8};
   cur.holes = L.geoJSON(curUnassignedData, {
     style: base,
-    onEachFeature:(f,l)=>{ const p=f.properties;
-      const txt=`${p.법정동} ${p.지번} <small>(${p.지목||'대'})</small><br><b>통 미배정</b> <small>— 별표 누락 의심(통 확인 필요)</small>`;
-      l.bindPopup(txt);
-      l.on('click', e=>{ if(drawing) return; L.DomEvent.stopPropagation(e); $('res').innerHTML=txt; });
+    onEachFeature:(f,l)=>{
+      // 미배정 대지를 클릭하면 추정 통 + '이 필지를 N통으로 넣기' 버튼 팝업(검색 핀과 동일)
+      l.on('click', e=>{ if(drawing) return; L.DomEvent.stopPropagation(e);
+        const info=buildHoleInfo(f); l.bindPopup(info.html).openPopup(); $('res').innerHTML=info.res; });
       l.on('mouseover',()=> l.setStyle({fillOpacity: on?.85:.6, weight: on?2.4:1.8, color: on?'#8e0048':'#102027'}));
       l.on('mouseout', ()=> l.setStyle(base));
     }}).addTo(map);
@@ -1122,6 +1122,21 @@ function assignOmitted(bjd, jib, t){
   $('res').innerHTML = `<b>${bjd} ${jib}</b> → <b>${tong}통 (검토중)</b>에 넣음 — 빨간 점선으로 표시·이 브라우저에 저장됩니다.`;
   setStatus('');
 }
+// 미배정 대지(구멍) 클릭 공용 — 추정 통 계산 + 팝업 html + #res 텍스트(검색 핀과 동일 형태)
+function buildHoleInfo(f){
+  const p=f.properties||{}, bjd=String(p.법정동||''), jib=String(p.지번||'');
+  let tHat='', grade='', predTxt='';
+  try{ const r=predictOmittedTong(curParcelsData,{features:[f]})[0];
+    tHat=r.추정통; grade=r.등급;
+    predTxt=(tHat!=='')?`추정: <b>${tHat}통</b> <small>(${grade} ${r.신뢰도}%)</small>`:`추정: <small>불확실 — 통 직접 확인</small>`;
+  }catch(e){ predTxt='<small>추정 계산 실패</small>'; }
+  const safe=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+  const btnT=(tHat!=='' && grade!=='불확실')?tHat:'';
+  const lbl=btnT!==''?`✏️ 이 필지를 ${btnT}통으로 넣기(검토중)`:'✏️ 이 필지를 통에 넣기(검토중)';
+  const html=`<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(${p.지목||'대'} · 별표 누락 의심)</span><br>통이 안 정해진 땅이에요. ${predTxt}<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${btnT}')">${lbl}</button></div>`;
+  const res=`<b>${bjd} ${jib}</b> → <b>통 미배정</b> <small>(별표 누락 의심${tHat!==''?`, 추정 ${tHat}통`:''})</small>`;
+  return {html, res};
+}
 $('go').onclick = search;
 $('q').addEventListener('keydown', e=>{ if(e.key==='Enter') search(); });
 
@@ -1335,8 +1350,10 @@ let curLabelItems=[];   // 통번호 라벨 declutter용 {mk, ll, area}
 function buildLabels(features){
   cur.labels = L.layerGroup();
   curLabelItems=[];
+  const seenTong=new Set();                 // 같은 통 번호는 라벨 1개만(넣기로 여러 필지 추가해도 통번호 중복 안 찍힘)
   (features||[]).forEach(f=>{ const p=f.properties;
     if(p.lat==null||p.lon==null) return;
+    if(seenTong.has(+p.통)) return; seenTong.add(+p.통);
     const mn=manualF(f);
     const bs=(approx(f)||mn)?'dashed':'solid';
     const bc=mn?MANUAL_COL:color(p.통);
@@ -1541,8 +1558,10 @@ document.addEventListener('keydown', e=>{
 function renderManual(){ if(cur.admin) renderBoundary(); renderManualList(); populateTongSelect(); }
 function renderManualList(){
   const list = manualData[curCode] || [];
-  $('manual-list').innerHTML = list.map((m,i)=>
-    `<div class="manrow"><span>${m.통}통 <small>검토중 ${m.date}</small></span><b data-i="${i}">✕</b></div>`).join('');
+  const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+  $('manual-list').innerHTML = list.map((m,i)=>{
+    const tag=esc((m.reason||'').replace('미배정 대지(별표 누락 의심) ','').trim()).slice(0,20);
+    return `<div class="manrow"><span>${m.통}통 <small>${tag?tag+' · ':''}${m.date}</small></span><b data-i="${i}" title="검토중 취소">✕</b></div>`; }).join('');
   $('manual-list').querySelectorAll('b[data-i]').forEach(x=> x.onclick=()=>{
     manualData[curCode].splice(+x.dataset.i,1);
     if(!manualData[curCode].length) delete manualData[curCode];
