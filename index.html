@@ -1141,6 +1141,11 @@ function buildHoleInfo(f){
     btns=`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 통에 넣기(검토중)</button>`; }
   else if(roadOnly){ predTxt=`<small>도로만 인접(주변 ${cands.map(c=>c.통+'통').join('·')}) — 통 직접 확인</small>`;
     btns=`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 통에 넣기(검토중)</button>`; }
+  else if(row&&row.본번보정){                       // 도로만/불일치였지만 같은 본번 대지가 한 통 → 그 통으로 추정
+    const t=cands[0].통;
+    predTxt=`<small style="color:#555">${row.비고}</small>`;
+    btns=`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${t}')">✏️ ${t}통으로 넣기 <small>(추정)</small></button>`
+       + `<button class="msdraw msalt" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 다른 통으로…</button>`; }
   else { const warn=(row&&row.본번갈림)?`<small style="color:#c0392b">⚠️ ${row.비고}</small><br>`:'';
     predTxt=warn+'주변 통: '+cands.map(c=>`<b>${c.통}통</b> <small>${c.pct}%</small>`).join(' · ')+(cands.length>=2?' <small>— 골라 넣으세요</small>':'');
     btns=cands.map(c=>`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${c.통}')">✏️ ${c.통}통으로 넣기 <small>(${c.pct}%)</small></button>`).join('')
@@ -1305,13 +1310,22 @@ function predictOmittedTong(parcels, unassigned){
   const byBon={};
   rows.forEach(r=>{ if(!(r.후보&&r.후보[0])) return; (byBon[r.법정동+'|'+String(r.지번).split('-')[0]] ||= []).push(r); });
   Object.values(byBon).forEach(grp=>{
-    const cnt={}; grp.forEach(r=> cnt[r.후보[0].통]=(cnt[r.후보[0].통]||0)+1);   // 도로변(roadOnly)이어도 최상위 후보로 집계 → 25통 신호 안 놓침
-    const tongs=Object.keys(cnt).map(Number);
-    if(tongs.length<2) return;                              // 본번이 한 통으로만 추정 → 그대로
-    const cands=tongs.map(t=>({통:t, n:cnt[t], pct:Math.round(cnt[t]/grp.length*100)})).sort((a,b)=>b.n-a.n);
-    const candStr=cands.map(c=>`${c.통}통(${c.pct}%)`).join(' · ');
-    grp.forEach(r=>{ r.후보=cands.slice(0,4); r.후보표시=candStr; r.추정통=''; r.roadOnly=false; r.본번갈림=true;
-      r.등급=(r.등급==='불확실')?'불확실':'참고'; r.비고='같은 본번이 '+tongs.slice().sort((a,b)=>a-b).join('·')+'통으로 갈림 — 확인'; });
+    // 통별 근거 분리 — 대지(실측 이웃) vs 도로만(roadOnly). 도로 신호는 약해서 '한 필지짜리 도로 통'은
+    // 갈림 근거에서 뺀다(옆 도로가 본번을 억지로 가르는 오탐 방지 — 예: 거모동 634-3의 23통).
+    // 단 도로만이라도 여러 필지가 같은 통이면(예: 1777-6~12의 25통) 실제 하위 블록이므로 갈림으로 인정.
+    const landCnt={}, roadCnt={}, cnt={};
+    grp.forEach(r=>{ const t=r.후보[0].통; (r.roadOnly?roadCnt:landCnt)[t]=((r.roadOnly?roadCnt:landCnt)[t]||0)+1; cnt[t]=(cnt[t]||0)+1; });
+    const splitTongs=Object.keys(cnt).map(Number).filter(t=> (landCnt[t]||0)>=1 || (roadCnt[t]||0)>=2);
+    if(splitTongs.length>=2){                               // 진짜 갈림(대지 근거 2통↑ 또는 도로 블록 2필지↑)
+      const cands=splitTongs.map(t=>({통:t, n:cnt[t], pct:Math.round(cnt[t]/grp.length*100)})).sort((a,b)=>b.n-a.n);
+      const candStr=cands.map(c=>`${c.통}통(${c.pct}%)`).join(' · ');
+      grp.forEach(r=>{ r.후보=cands.slice(0,4); r.후보표시=candStr; r.추정통=''; r.roadOnly=false; r.본번갈림=true;
+        r.등급=(r.등급==='불확실')?'불확실':'참고'; r.비고='같은 본번이 '+splitTongs.slice().sort((a,b)=>a-b).join('·')+'통으로 갈림 — 확인'; });
+    } else if(Object.keys(landCnt).length===1){             // 대지 근거가 한 통뿐 → 본번 일관. 도로만/불일치 형제 필지를 그 통으로 추정(가짜 갈림 없음)
+      const t=+Object.keys(landCnt)[0];
+      grp.forEach(r=>{ if(r.roadOnly || r.후보[0].통!==t){ r.추정통=t; r.후보=[{통:t, n:1, pct:100}]; r.후보표시=t+'통(추정)'; r.roadOnly=false; r.본번보정=true;
+        if(r.등급==='불확실') r.등급='참고'; r.비고='같은 본번의 대지가 '+t+'통 — 추정'; } });
+    }
   });
   rows.sort((a,b)=> (a.추정통===''?1e9:a.추정통)-(b.추정통===''?1e9:b.추정통) || b.신뢰도-a.신뢰도 || String(a.지번).localeCompare(String(b.지번),'ko',{numeric:true}));
   return rows;
