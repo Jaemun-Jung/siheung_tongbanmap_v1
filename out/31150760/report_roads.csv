@@ -21,6 +21,7 @@
 1,0,정왕동,2643,road_match
 1,0,정왕동,2643-1,road_match
 1,0,정왕동,2643-2,road_match
+10,0,정왕동,2649,road_match
 10,0,정왕동,2649-1,road_match
 10,0,정왕동,2656,road_split
 11,0,정왕동,2656,road_split
@@ -39,6 +40,8 @@
 2,0,정왕동,2682-1,road_match
 2,0,정왕동,2690,road_match
 2,0,정왕동,2690-1,road_match
+2,0,정왕동,2690-4,road_match
+2,0,정왕동,2690-5,road_match
 2,0,정왕동,2700-7,road_match
 2,0,정왕동,2702,road_match
 2,0,정왕동,2703-16,road_match
@@ -55,6 +58,7 @@
 2,0,정왕동,2720-13,road_match
 2,0,정왕동,2726,road_match
 2,0,정왕동,2726-1,road_match
+2,0,정왕동,2726-3,road_match
 2,0,정왕동,2726-7,road_match
 2,0,정왕동,2728,road_match
 2,0,정왕동,2731-5,road_match
@@ -64,10 +68,11 @@
 9,0,정왕동,2744,road_split
 10,0,정왕동,2744,road_split
 10,0,정왕동,2744-1,road_match
+9,0,정왕동,2744-2,road_match
 9,0,정왕동,2744-3,road_match
 10,0,정왕동,2751-11,road_match
-10,0,정왕동,2753,road_split
 9,0,정왕동,2753,road_split
+10,0,정왕동,2753,road_split
 10,0,정왕동,2753-1,road_match
 10,0,정왕동,2753-2,road_match
 9,0,정왕동,2770-13,road_match
