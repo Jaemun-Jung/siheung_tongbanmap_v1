@@ -92,6 +92,7 @@
  .banrow>b{display:inline-block;min-width:44px;color:#555;vertical-align:top}
  .joblink{cursor:pointer;color:var(--blue);padding:0 2px;border-radius:3px;white-space:nowrap}
  .joblink:hover{background:#eef4fb;text-decoration:underline}
+ .joblink .jbjd{font-style:normal;color:#8a6d1f;font-size:10px}   /* 여러 법정동일 때 지번 앞 법정동 */
  /* 도움말 ? 아이콘 + 설명 팝업 */
  .help{display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;border-radius:50%;
    background:#aab;color:#fff;font-size:11px;font-weight:700;cursor:pointer;margin-left:3px;vertical-align:middle}
@@ -949,7 +950,7 @@ function search(){
 // ---------- 역방향 검색: '행정동 N통' → 그 통으로 이동 + 통 단위 결과(반별 요약·지번 목록) ----------
 function searchTong(v){
   let dongName=null, tong=null;
-  const m = v.match(/^\s*(\S+?[동])\s+(\d+)\s*통(?:\s*\d+\s*반)?\s*$/);   // '군자동 15통'(뒤 '1반'은 통 단위라 무시)
+  const m = v.match(/^\s*(\S+?[동])\s*(\d+)\s*통(?:\s*\d+\s*반)?\s*$/);   // '군자동 15통'/'군자동15통'(띄어쓰기 없어도 OK, 뒤 '1반'은 통 단위라 무시)
   if(m){ dongName=m[1]; tong=+m[2]; }
   else{ const m2 = v.match(/^\s*(\d+)\s*통(?:\s*\d+\s*반)?\s*$/);           // 동 보는 중이면 'N통'만으로도
     if(m2){ if(curCode){ dongName=curDongName; tong=+m2[1]; }
@@ -971,32 +972,39 @@ function showTongResult(t, dongName){
   cur.parcels.eachLayer(l=>{ const f=l.feature, p=f.properties; if(+p.통!==t) return;
     b.extend(l.getBounds());
     if(manualF(f) || road(f) || !p.지번) return;                          // 내가 넣은 것·도로 제외(지번 주소만)
-    rows.push({jib:String(p.지번), ban:(p.반==null||+p.반===0)?0:+p.반, approx:approx(f)}); });
+    rows.push({bjd:String(p.법정동||''), jib:String(p.지번), ban:(p.반==null||+p.반===0)?0:+p.반, approx:approx(f)}); });
   if(b.isValid()) map.fitBounds(b.pad(0.2),{maxZoom:17});
   if(!rows.length){
     $('res').innerHTML = `<b>${dongName} ${t}통</b> — 지도에 표시할 <b>지번 필지가 없어요</b>.<br>`
       + `<small>아파트를 동·호로 나눈 통일 수 있어요. <b>아파트 이름+동</b>으로 검색해 보세요.</small>`;
     return;
   }
-  rows.sort((a,b)=> a.ban-b.ban || a.jib.localeCompare(b.jib,'ko',{numeric:true}));
+  rows.sort((a,b)=> a.ban-b.ban || a.bjd.localeCompare(b.bjd,'ko') || a.jib.localeCompare(b.jib,'ko',{numeric:true}));
+  // 법정동 집계 — 한 행정동(예 군자동) 안에 법정동이 여럿(거모동·군자동)이면 지번만으론 모호하므로 함께 표기
+  const bjdCnt={}; rows.forEach(r=>{ bjdCnt[r.bjd]=(bjdCnt[r.bjd]||0)+1; });
+  const bjds=Object.keys(bjdCnt).filter(Boolean).sort((a,b)=>bjdCnt[b]-bjdCnt[a]);
+  const multiBjd = bjds.length>1;
+  const bjdSummary = bjds.map(bd=>`${bd} <b>${bjdCnt[bd]}</b>`).join(' · ');
   const byBan={}; rows.forEach(r=>{ (byBan[r.ban]=byBan[r.ban]||[]).push(r); });
   const banKeys=Object.keys(byBan).map(Number).sort((a,b)=>a-b);
   const lab=k=> k===0?'반미상':k+'반';
   const banSummary = banKeys.map(k=>`${lab(k)} <b>${byBan[k].length}</b>`).join(' · ');
   const listHtml = banKeys.map(k=>{
-    const items = byBan[k].map(r=>`<span class="joblink" data-jib="${r.jib}" title="클릭하면 그 필지로 이동">${r.jib}${r.approx?'≈':''}</span>`).join(' ');
+    const items = byBan[k].map(r=>`<span class="joblink" data-jib="${r.jib}" data-bjd="${r.bjd}" title="클릭하면 그 필지로 이동">${multiBjd&&r.bjd?`<i class="jbjd">${r.bjd}</i> `:''}${r.jib}${r.approx?'≈':''}</span>`).join(' ');
     return `<div class="banrow"><b>${lab(k)}</b> <span class="jobs">${items}</span></div>`;
   }).join('');
   $('res').innerHTML =
     `<b>${dongName} ${t}통</b> · 지번 <b>${rows.length}</b>개 <small>(반 ${banKeys.length}개)</small>`
+    + `<div class="bansum">법정동: ${bjdSummary}${multiBjd?' <small>(지번 앞에 법정동 표기)</small>':''}</div>`
     + `<div class="bansum">${banSummary}</div>`
     + `<details class="tonglist"><summary>지번 목록 보기 (${rows.length}개)</summary><div class="joblist">${listHtml}</div></details>`;
 }
 // 지번 목록에서 지번 클릭 → 그 필지로 이동 + 팝업 (#res는 내용만 갱신되므로 위임 1회 등록)
 $('res').addEventListener('click', e=>{
   const s=e.target.closest('.joblink'); if(!s || !cur.parcels) return;
-  const jib=s.dataset.jib; let found=null;
-  cur.parcels.eachLayer(l=>{ if(!found && String(l.feature.properties.지번)===jib && !road(l.feature)) found=l; });
+  const jib=s.dataset.jib, bjd=s.dataset.bjd||''; let found=null;
+  cur.parcels.eachLayer(l=>{ const p=l.feature.properties;
+    if(!found && String(p.지번)===jib && (!bjd || String(p.법정동||'')===bjd) && !road(l.feature)) found=l; });
   if(found){ try{ map.fitBounds(found.getBounds().pad(1.2),{maxZoom:19}); }catch(_){}
     if(found.openPopup) found.openPopup(); }
 });
