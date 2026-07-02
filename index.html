@@ -268,8 +268,8 @@
     </div>
   </details>
 
-  <details class="sec">
-    <summary>📄 미배정 대지 통 추정 엑셀</summary>
+  <details class="sec" id="omit-sec" style="display:none">
+    <summary>📄 미배정 대지 통 추정 엑셀 <span style="color:#c0392b;font-size:11px">🔧 담당자</span></summary>
     <div class="secbody">
       <div class="row tight">
         <button class="b" id="omit-this">📄 이 동</button>
@@ -466,7 +466,9 @@ fetch('out/apartment_index.json').then(r=>r.json()).then(d=>{ aptIndex=d.list; a
 // 평소(일반 주소)엔 완전히 숨김. 담당자만 ?admin=1 주소를 북마크해 사용.
 const adminMode = new URLSearchParams(location.search).get('admin')==='1';
 if(adminMode){ const _s=document.querySelector('.sub');
-  if(_s) _s.innerHTML += ' <span style="color:#c0392b;font-weight:700">· 🔧 관리자 모드</span>'; }
+  if(_s) _s.innerHTML += ' <span style="color:#c0392b;font-weight:700">· 🔧 관리자 모드</span>';
+  const _os=document.getElementById('omit-sec'); if(_os) _os.style.display='';   // 미배정 추정 엑셀 = 담당자 도구 → 관리자 모드에서만 노출
+}
 // 8단계 검증 안내(미표시 통/충돌/미배정)
 let issuesData={}, reviewData={};
 fetch('out/issues.json').then(r=>r.json())
