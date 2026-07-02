@@ -241,7 +241,7 @@
         <button class="b" id="draw-cancel">✕ 그리기 취소</button>
       </div>
       <div id="manual-list" class="manlist"></div>
-      <div class="hint">클릭=점, <b>더블클릭=완료</b>, <b>Backspace</b>=마지막 점 취소, <b>ESC</b>=처음부터/취소 · 검토중(빨간 점선)으로 이 브라우저에 저장됨</div>
+      <div class="hint">클릭=점, <b>더블클릭=완료</b>, <b>Backspace</b>=마지막 점 취소, <b>ESC</b>=처음부터/취소 · 빨간 점선으로 <b>내 화면(이 브라우저)에만</b> 저장됨</div>
     </div>
   </details>
 
@@ -581,7 +581,7 @@ function populateTongSelect(){
   const tongs=[...new Set(base.concat(man))].sort((a,b)=>a-b);
   sel.innerHTML='<option value="">통 선택…(클릭 시 이동)</option>'+
     tongs.map(t=>{ const onlyMan = man.includes(t) && !base.includes(t);
-      return `<option value="${t}">${t}통${onlyMan?' (검토중)':''}</option>`; }).join('');
+      return `<option value="${t}">${t}통${onlyMan?' (내가 넣음)':''}</option>`; }).join('');
   sel.style.display = tongs.length ? 'block' : 'none';
 }
 // 검색창+검색핀 초기화 — 다른 통/동을 '직접' 고르면 옛 검색 주소가 잔존해 오해되는 것 방지(검색 경로에선 호출 안 함)
@@ -696,7 +696,7 @@ function renderBoundary(){
     // 출처(근거) 배지 — 확실한 것(별표 직접)은 초록으로 강조, 도로는 중립, 아파트는 정보
     const BYP = `<br><span class="src src-byp">✓ 시행규칙 별표</span><div class="src-sub">시흥시 통·반 설치 조례 시행규칙 별표 · 2026.2.26.</div>`;
     const roadTxt = p.fill_method==='manual_pending' ? '도로 — 검토 대상' : '도로 — 인접 통 기준';
-    const txt = manualF(f) ? `<b>${dn}${p.통}통 (검토중)</b><br><small>${p.reason||'수동 보정'}<br>${p.date||''}</small>`
+    const txt = manualF(f) ? `<b>${dn}${p.통}통</b> <small>(내가 넣음)</small><br><small>${p.reason||'수동 보정'}<br>${p.date||''}</small>`
       : clean ? `<b>${dn}${p.통}통</b>`
       : approx(f) ? `<b>${dn}${p.통}통 (근사 분할)</b><br>${p.법정동} ${p.지번}<br><span class="src src-apt">🏢 아파트 동별 분할</span><div class="src-sub">정확한 통·반은 아파트명+동 검색</div>`
       : road(f) ? `${p.법정동} ${p.지번} <small>(도로)</small><br><b>${dn}${p.통}통</b><br><span class="src src-road">${roadTxt}</span>`
@@ -1126,7 +1126,7 @@ function assignOmitted(bjd, jib, t){
   tong=+String(tong).trim();
   (manualData[curCode]=manualData[curCode]||[]).push({통:tong, reason:`미배정 대지(별표 누락 의심) ${bjd} ${jib}`, date:new Date().toISOString().slice(0,10), geometry:feat.geometry});
   saveManual(); renderManual(); map.closePopup(); clearSearchMarker();
-  $('res').innerHTML = `<b>${bjd} ${jib}</b> → <b>${tong}통 (검토중)</b>에 넣음 — 빨간 점선으로 표시·이 브라우저에 저장됩니다.`;
+  $('res').innerHTML = `<b>${bjd} ${jib}</b> → <b>${tong}통</b>에 넣음 — 빨간 점선으로 표시되고, <b>내 화면(이 브라우저)에만</b> 저장됩니다.`;
   setStatus('');
 }
 // 미배정 대지(구멍) 클릭/검색 공용 — 후보 통 계산 + 팝업 html + #res 텍스트.
@@ -1138,9 +1138,9 @@ function buildHoleInfo(f){
   const safe=s=>String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
   let predTxt, btns;
   if(!cands.length){ predTxt='<small>접한 통 없음 — 통 직접 확인</small>';
-    btns=`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 통에 넣기(검토중)</button>`; }
+    btns=`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 통에 넣기</button>`; }
   else if(roadOnly){ predTxt=`<small>도로만 인접(주변 ${cands.map(c=>c.통+'통').join('·')}) — 통 직접 확인</small>`;
-    btns=`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 통에 넣기(검토중)</button>`; }
+    btns=`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 통에 넣기</button>`; }
   else if(row&&row.본번보정){                       // 도로만/불일치였지만 같은 본번 대지가 한 통 → 그 통으로 추정
     const t=cands[0].통;
     predTxt=`<small style="color:#555">${row.비고}</small>`;
@@ -1573,7 +1573,7 @@ map.on('pm:create', e=>{
   (manualData[curCode] = manualData[curCode] || []).push(
     { 통:+t, reason, date:new Date().toISOString().slice(0,10), geometry:gj.geometry });
   saveManual(); renderManual();
-  $('res').innerHTML = `<b>${t}통 (검토중)</b> 추가됨 — 겹친 기존 통은 경계가 자동 조정됩니다.`;
+  $('res').innerHTML = `<b>${t}통</b> 추가됨 — 빨간 점선(내 화면에만 저장), 겹친 기존 통은 경계가 자동 조정됩니다.`;
 });
 function setDrawUI(on){
   drawing = on;
@@ -1620,7 +1620,7 @@ function renderManualList(){
   const esc=s=>String(s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
   $('manual-list').innerHTML = list.map((m,i)=>{
     const tag=esc((m.reason||'').replace('미배정 대지(별표 누락 의심) ','').trim()).slice(0,20);
-    return `<div class="manrow"><span>${m.통}통 <small>${tag?tag+' · ':''}${m.date}</small></span><b data-i="${i}" title="검토중 취소">✕</b></div>`; }).join('');
+    return `<div class="manrow"><span>${m.통}통 <small>${tag?tag+' · ':''}${m.date}</small></span><b data-i="${i}" title="내가 넣은 통 삭제">✕</b></div>`; }).join('');
   $('manual-list').querySelectorAll('b[data-i]').forEach(x=> x.onclick=()=>{
     manualData[curCode].splice(+x.dataset.i,1);
     if(!manualData[curCode].length) delete manualData[curCode];
