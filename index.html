@@ -93,10 +93,15 @@
  .joblink{cursor:pointer;color:var(--blue);padding:0 2px;border-radius:3px;white-space:nowrap}
  .joblink:hover{background:#eef4fb;text-decoration:underline}
  .joblink .jbjd{font-style:normal;color:#8a6d1f;font-size:10px}   /* 여러 법정동일 때 지번 앞 법정동 */
+ .dl-tong{margin-top:6px;display:inline-block;padding:5px 10px;border:1px solid #b9d4ea;border-radius:7px;
+   background:#f2f8ff;color:#1769aa;font-size:11.5px;font-weight:700;cursor:pointer}
+ .dl-tong:hover{background:#e3f0fb}
+ .dl-note{color:#8a94a0;font-size:10px;margin-top:3px}
  /* 도움말 ? 아이콘 + 설명 팝업 */
  .help{display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;border-radius:50%;
    background:#aab;color:#fff;font-size:11px;font-weight:700;cursor:pointer;margin-left:3px;vertical-align:middle}
  .help:hover{background:var(--blue)}
+ .btnq{display:inline-flex;align-items:center;gap:3px}   /* 버튼+물음표를 한 덩어리로(줄바꿈 시 ? 떨어짐 방지) */
  #helppop{position:fixed;z-index:3000;max-width:250px;background:#fff;color:#2a3340;font-size:12px;
    line-height:1.55;padding:9px 11px;border:1px solid #dbe3ea;border-left:3px solid var(--blue);
    border-radius:10px;box-shadow:0 4px 16px rgba(20,40,80,.18);display:none}
@@ -223,7 +228,7 @@
         <button class="b on" id="t-label">통번호</button>
         <button class="b on" id="t-admin">동경계</button>
         <button class="b" id="t-dim">주변 어둡게</button>
-        <button class="b" id="t-unassigned">미배정 대지</button><span class="help" id="help-unassigned">?</span>
+        <span class="btnq"><button class="b" id="t-unassigned">미배정 대지</button><span class="help" id="help-unassigned">?</span></span>
       </div>
       <div class="hint"><b>면</b> 끄면 윤곽선만 · <b>지적선</b> 끄면 통 색 블록만 깔끔하게 · <b>미배정 대지</b>=통 없는 대지 클릭해 지번 확인 · 통 클릭=선택(Ctrl+클릭=다중)</div>
 
@@ -235,11 +240,13 @@
         <button class="b" data-pal="gray">흑백</button>
       </div>
 
-      <details class="adv"><summary>고급 (선 두께·투명도)</summary>
+      <details class="adv"><summary>고급 (선 두께·투명도·통번호 크기)</summary>
         <div style="font-size:11px;color:#555;margin-top:6px">선 두께
           <input type="range" id="lw" min="1" max="6" step="0.5" style="width:100%;margin-top:2px"></div>
         <div style="font-size:11px;color:#555;margin-top:4px">채우기 투명도
           <input type="range" id="fa" min="0.1" max="0.85" step="0.05" style="width:100%;margin-top:2px"></div>
+        <div style="font-size:11px;color:#555;margin-top:4px">통번호 크기
+          <input type="range" id="lsz" min="0.8" max="1.8" step="0.1" style="width:100%;margin-top:2px"></div>
       </details>
 
       <div class="legend"><span><b>점선 테두리</b> = 아파트 동별 근사 분할 · 필지를 클릭하면 별표·도로보정 등 <b>근거</b>가 표시됩니다</span></div>
@@ -364,7 +371,7 @@ const PALETTES = {
   vivid:   s => `hsl(${(s*360/NCOL)%360},85%,48%)`,
   gray:    s => `hsl(0,0%,${35+((s*53)%50)}%)`,      // 인쇄용 흑백(명도 변주)
 };
-const DEFAULT_SETTINGS = { palette:'default', tongColors:{}, lineWeight:3, fillAlpha:0.45 };
+const DEFAULT_SETTINGS = { palette:'default', tongColors:{}, lineWeight:3, fillAlpha:0.45, labelScale:1 };
 let settings = Object.assign({}, DEFAULT_SETTINGS,
   JSON.parse(localStorage.getItem('tongban_style') || '{}'));
 let curCode = null;                                  // 현재 동 코드(통별 색 키)
@@ -993,11 +1000,28 @@ function showTongResult(t, dongName){
     const items = byBan[k].map(r=>`<span class="joblink" data-jib="${r.jib}" data-bjd="${r.bjd}" title="클릭하면 그 필지로 이동">${multiBjd&&r.bjd?`<i class="jbjd">${r.bjd}</i> `:''}${r.jib}${r.approx?'≈':''}</span>`).join(' ');
     return `<div class="banrow"><b>${lab(k)}</b> <span class="jobs">${items}</span></div>`;
   }).join('');
+  lastTongResult={dongName, t, rows};
   $('res').innerHTML =
     `<b>${dongName} ${t}통</b> · 지번 <b>${rows.length}</b>개 <small>(반 ${banKeys.length}개)</small>`
     + `<div class="bansum">법정동: ${bjdSummary}${multiBjd?' <small>(지번 앞에 법정동 표기)</small>':''}</div>`
     + `<div class="bansum">${banSummary}</div>`
-    + `<details class="tonglist"><summary>지번 목록 보기 (${rows.length}개)</summary><div class="joblist">${listHtml}</div></details>`;
+    + `<details class="tonglist"><summary>지번 목록 보기 (${rows.length}개)</summary><div class="joblist">${listHtml}</div></details>`
+    + `<button class="dl-tong" onclick="downloadTongXlsx()">📄 지번 목록 내려받기(엑셀)</button>`
+    + `<div class="dl-note">필지(지번) 목록입니다 · 세대·주민 명부 아님 · 참고용</div>`;
+}
+let lastTongResult=null;
+// 현재 통 결과의 지번 목록을 엑셀로 — [법정동·지번·반]. 세대/주민 명부가 아니라 필지 목록(참고용).
+function downloadTongXlsx(){
+  const R=lastTongResult;
+  if(!R || !R.rows.length){ setStatus('내려받을 통 결과가 없어요. 먼저 "행정동 N통"으로 검색하세요.'); return; }
+  if(typeof XLSX==='undefined'){ setStatus('엑셀 모듈 로딩 중 — 잠시 후 다시 누르세요.'); return; }
+  const aoa=[[`${R.dongName} ${R.t}통 · 지번(필지) 목록 · 참고용(세대·주민 명부 아님)`], [`총 ${R.rows.length}필지`], [],
+    ['법정동','지번','반'], ...R.rows.map(r=>[r.bjd, r.jib, r.ban===0?'':r.ban])];
+  const ws=XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols']=[{wch:12},{wch:14},{wch:6}];
+  const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, ws, `${R.dongName}${R.t}통`.slice(0,31));
+  XLSX.writeFile(wb, `${R.dongName}_${R.t}통_지번목록.xlsx`);
+  setStatus(`${R.dongName} ${R.t}통 지번 ${R.rows.length}개 — 엑셀로 내려받았어요.`);
 }
 // 지번 목록에서 지번 클릭 → 그 필지로 이동 + 팝업 (#res는 내용만 갱신되므로 위임 1회 등록)
 $('res').addEventListener('click', e=>{
@@ -1190,8 +1214,8 @@ function navToUnassigned(code, dong, bjd, jib, lat, lon){
     if(feat){ try{ const c=_centroid(feat.geometry); plon=c[0]; plat=c[1]; }catch(e){} }
     map.setView([plat,plon], 18, {animate:true});
     if(feat){ const info=buildHoleInfo(feat); dropSearchMarker([plat,plon], info.html, {autoPan:false}); $('res').innerHTML=info.res; }
-    else { dropSearchMarker([plat,plon], `<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(별표 누락 의심)</span><br>이 동에서 해당 필지를 못 찾았어요.</div>`, {autoPan:false});
-      $('res').innerHTML=`<b>${bjd} ${jib}</b> → <b>통 미배정</b> <small>(별표 누락 의심)</small>`; }
+    else { dropSearchMarker([plat,plon], `<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(별표에 없는 땅)</span><br>이 동에서 해당 필지를 못 찾았어요.</div>`, {autoPan:false});
+      $('res').innerHTML=`<b>${bjd} ${jib}</b> → <b>통 미지정</b> <small>(공식 목록·별표에 없음)</small>`; }
     setStatus('');
   });
 }
@@ -1233,8 +1257,8 @@ function buildHoleInfo(f){
     predTxt='주변 통: '+cands.map(c=>`<b>${c.통}통</b> <small>${c.pct}%</small>`).join(' · ')+(cands.length>=2?' <small>— 골라 넣으세요</small>':'');
     btns=cands.map(c=>`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${c.통}')">✏️ ${c.통}통으로 넣기 <small>(${c.pct}%)</small></button>`).join('')
        + `<button class="msdraw msalt" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 다른 통으로…</button>`; }
-  const html=`<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(${p.지목||'대'} · 별표 누락 의심)</span><br>통이 안 정해진 땅이에요. ${predTxt}${btns}</div>`;
-  const res=`<b>${bjd} ${jib}</b> → <b>통 미배정</b> <small>(별표 누락 의심${(cands.length&&!roadOnly)?`, 주변 ${cands.map(c=>c.통+'통').join('·')}`:''})</small>`;
+  const html=`<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(${p.지목||'대'} · 별표에 없는 땅)</span><br>통이 아직 정해지지 않은 땅이에요. <small style="color:#667">통·반을 정한 공식 목록(별표)에 이 지번이 없어요.</small> ${predTxt}${btns}</div>`;
+  const res=`<b>${bjd} ${jib}</b> → <b>통 미지정</b> <small>(공식 목록·별표에 없음${(cands.length&&!roadOnly)?`, 주변 ${cands.map(c=>c.통+'통').join('·')}`:''})</small>`;
   return {html, res};
 }
 $('go').onclick = search;
@@ -1487,6 +1511,7 @@ function buildLabels(features){
   cur.labels = L.layerGroup();
   curLabelItems=[];
   const seenTong=new Set();                 // 같은 통 번호는 라벨 1개만(넣기로 여러 필지 추가해도 통번호 중복 안 찍힘)
+  const sc=+settings.labelScale||1;         // 통번호 크기 배율(고급 슬라이더)
   (features||[]).forEach(f=>{ const p=f.properties;
     if(p.lat==null||p.lon==null) return;
     if(seenTong.has(+p.통)) return; seenTong.add(+p.통);
@@ -1494,8 +1519,8 @@ function buildLabels(features){
     const bs=(approx(f)||mn)?'dashed':'solid';
     const bc=mn?MANUAL_COL:color(p.통);
     const mk=L.marker([p.lat,p.lon],{interactive:false,keyboard:false,icon:
-      L.divIcon({className:'',iconSize:[26,19],iconAnchor:[13,10],
-        html:`<div class="tong-label" style="border-color:${bc};border-style:${bs}">${p.통}</div>`})});
+      L.divIcon({className:'',iconSize:[26*sc,19*sc],iconAnchor:[13*sc,10*sc],
+        html:`<div class="tong-label" style="border-color:${bc};border-style:${bs};font-size:${(12*sc).toFixed(1)}px;line-height:${Math.round(15*sc)}px;padding:0 ${Math.round(5*sc)}px">${p.통}</div>`})});
     let area=0; try{ area=turf.area(f); }catch(e){}
     curLabelItems.push({mk, ll:L.latLng(p.lat,p.lon), area});
   });
@@ -1506,10 +1531,10 @@ function buildLabels(features){
 function placeLabels(){
   if(!cur.labels) return;
   cur.labels.clearLayers();
-  const shown=[];
+  const shown=[]; const sc=+settings.labelScale||1, bw=27*sc, bh=19*sc;
   curLabelItems.slice().sort((a,b)=>b.area-a.area).forEach(it=>{   // 큰 통이 라벨 우선
     const pt=map.latLngToContainerPoint(it.ll);
-    if(shown.some(s=> Math.abs(s.x-pt.x)<27 && Math.abs(s.y-pt.y)<19)) return;  // 라벨 박스 26x19 겹침
+    if(shown.some(s=> Math.abs(s.x-pt.x)<bw && Math.abs(s.y-pt.y)<bh)) return;  // 라벨 박스 겹침(크기 배율 반영)
     shown.push(pt); cur.labels.addLayer(it.mk);
   });
 }
@@ -1528,9 +1553,10 @@ document.querySelectorAll('#palettes button').forEach(b=> b.onclick=()=>{
 });
 $('lw').addEventListener('input', e=>{ settings.lineWeight=+e.target.value; recolor(); });
 $('fa').addEventListener('input', e=>{ settings.fillAlpha=+e.target.value; recolor(); });
+$('lsz').addEventListener('input', e=>{ settings.labelScale=+e.target.value; recolor(); });   // 통번호 크기
 (function initStyleUI(){
   document.querySelectorAll('#palettes button').forEach(x=>x.classList.toggle('on',x.dataset.pal===settings.palette));
-  $('lw').value=settings.lineWeight; $('fa').value=settings.fillAlpha;
+  $('lw').value=settings.lineWeight; $('fa').value=settings.fillAlpha; $('lsz').value=settings.labelScale||1;
 })();
 
 // ---------- 9단계: 수동 보정(통 경계 직접 그리기) ----------
