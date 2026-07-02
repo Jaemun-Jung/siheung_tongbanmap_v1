@@ -975,6 +975,7 @@ function searchTong(v){
 }
 function showTongResult(t, dongName){
   if(typeof clearSearchMarker==='function') clearSearchMarker();          // 이전 검색 핀 정리
+  map.closePopup();                                                       // 이전에 클릭한 필지의 지도 팝업 닫기(통 검색은 새 팝업을 안 열어 남던 문제)
   if(!cur.parcels){ setStatus('동 데이터를 아직 못 불러왔어요. 잠시 후 다시 시도하세요.'); return; }
   selectSingle(t);                                                        // 그 통만 강조(주변 흐리게)
   const b=L.latLngBounds([]); const rows=[];
