@@ -82,6 +82,16 @@
  .g-jibun{background:#c0392b}
  .g-block{background:#d68910}
  .g-over{background:#7d8a99}
+ /* 통 단위 결과(행정동+통 검색) — 반별 요약 + 지번 목록 */
+ .bansum{margin-top:3px;color:#333;font-size:11px}
+ .tonglist{margin-top:5px}
+ .tonglist>summary{cursor:pointer;color:var(--blue);font-size:11px}
+ .joblist{max-height:190px;overflow:auto;margin-top:4px;font-size:11px;line-height:1.75;
+   border:1px solid #eee;border-radius:6px;padding:4px 6px}
+ .banrow{margin:2px 0}
+ .banrow>b{display:inline-block;min-width:44px;color:#555;vertical-align:top}
+ .joblink{cursor:pointer;color:var(--blue);padding:0 2px;border-radius:3px;white-space:nowrap}
+ .joblink:hover{background:#eef4fb;text-decoration:underline}
  /* 도움말 ? 아이콘 + 설명 팝업 */
  .help{display:inline-block;width:15px;height:15px;line-height:15px;text-align:center;border-radius:50%;
    background:#aab;color:#fff;font-size:11px;font-weight:700;cursor:pointer;margin-left:3px;vertical-align:middle}
@@ -924,12 +934,67 @@ $('t-unassigned').onclick= e=>{ press(e.target,!e.target.classList.contains('on'
 // ---------- 지번 검색 ----------
 function search(){
   const v=$('q').value.trim(); if(!v){ setStatus('검색어를 입력하세요.'); return; }
+  if(searchTong(v)) return;                     // 역방향: '군자동 15통' → 그 통으로 이동 + 통 단위 결과
   // 순수 지번(예 '배곧동 292-2', '1882-1')이면 아파트 검색에 가로채이지 않게 지번 검색으로 보낸다.
   if(/^\s*(\S*?[동리])?\s*산?\d+(?:-\d+)?\s*$/.test(v)){ searchJibun(v); return; }
   if(searchApartment(v)) return;               // 아파트명(+동) → 통/반 (지도에 없어도 조회)
   if(/[로길]/.test(v)) searchAddress(v);      // 도로명주소 → juso
   else searchJibun(v);                         // 지번
 }
+// ---------- 역방향 검색: '행정동 N통' → 그 통으로 이동 + 통 단위 결과(반별 요약·지번 목록) ----------
+function searchTong(v){
+  let dongName=null, tong=null;
+  const m = v.match(/^\s*(\S+?[동])\s+(\d+)\s*통(?:\s*\d+\s*반)?\s*$/);   // '군자동 15통'(뒤 '1반'은 통 단위라 무시)
+  if(m){ dongName=m[1]; tong=+m[2]; }
+  else{ const m2 = v.match(/^\s*(\d+)\s*통(?:\s*\d+\s*반)?\s*$/);           // 동 보는 중이면 'N통'만으로도
+    if(m2){ if(curCode){ dongName=curDongName; tong=+m2[1]; }
+      else{ setStatus(`행정동을 함께 입력하세요. 예) 군자동 ${m2[1]}통`); return true; } }
+    else return false; }
+  const norm=s=>String(s).replace(/\s+/g,'');
+  const d = ((manifest&&manifest.dongs)||[]).find(x=>norm(x.dong)===norm(dongName));
+  if(!d){ setStatus(`'${dongName}'은(는) 행정동 이름이 아니에요. 예) 군자동 ${tong}통`); return true; }
+  const go = ()=> showTongResult(tong, d.dong);
+  if(curCode===d.code) go();
+  else loadDong(d.code, d.dong, ()=> setTimeout(go, 80));                  // 다른 동이면 로드 후 표시
+  return true;
+}
+function showTongResult(t, dongName){
+  if(typeof clearSearchMarker==='function') clearSearchMarker();          // 이전 검색 핀 정리
+  if(!cur.parcels){ setStatus('동 데이터를 아직 못 불러왔어요. 잠시 후 다시 시도하세요.'); return; }
+  selectSingle(t);                                                        // 그 통만 강조(주변 흐리게)
+  const b=L.latLngBounds([]); const rows=[];
+  cur.parcels.eachLayer(l=>{ const f=l.feature, p=f.properties; if(+p.통!==t) return;
+    b.extend(l.getBounds());
+    if(manualF(f) || road(f) || !p.지번) return;                          // 내가 넣은 것·도로 제외(지번 주소만)
+    rows.push({jib:String(p.지번), ban:(p.반==null||+p.반===0)?0:+p.반, approx:approx(f)}); });
+  if(b.isValid()) map.fitBounds(b.pad(0.2),{maxZoom:17});
+  if(!rows.length){
+    $('res').innerHTML = `<b>${dongName} ${t}통</b> — 지도에 표시할 <b>지번 필지가 없어요</b>.<br>`
+      + `<small>아파트를 동·호로 나눈 통일 수 있어요. <b>아파트 이름+동</b>으로 검색해 보세요.</small>`;
+    return;
+  }
+  rows.sort((a,b)=> a.ban-b.ban || a.jib.localeCompare(b.jib,'ko',{numeric:true}));
+  const byBan={}; rows.forEach(r=>{ (byBan[r.ban]=byBan[r.ban]||[]).push(r); });
+  const banKeys=Object.keys(byBan).map(Number).sort((a,b)=>a-b);
+  const lab=k=> k===0?'반미상':k+'반';
+  const banSummary = banKeys.map(k=>`${lab(k)} <b>${byBan[k].length}</b>`).join(' · ');
+  const listHtml = banKeys.map(k=>{
+    const items = byBan[k].map(r=>`<span class="joblink" data-jib="${r.jib}" title="클릭하면 그 필지로 이동">${r.jib}${r.approx?'≈':''}</span>`).join(' ');
+    return `<div class="banrow"><b>${lab(k)}</b> <span class="jobs">${items}</span></div>`;
+  }).join('');
+  $('res').innerHTML =
+    `<b>${dongName} ${t}통</b> · 지번 <b>${rows.length}</b>개 <small>(반 ${banKeys.length}개)</small>`
+    + `<div class="bansum">${banSummary}</div>`
+    + `<details class="tonglist"><summary>지번 목록 보기 (${rows.length}개)</summary><div class="joblist">${listHtml}</div></details>`;
+}
+// 지번 목록에서 지번 클릭 → 그 필지로 이동 + 팝업 (#res는 내용만 갱신되므로 위임 1회 등록)
+$('res').addEventListener('click', e=>{
+  const s=e.target.closest('.joblink'); if(!s || !cur.parcels) return;
+  const jib=s.dataset.jib; let found=null;
+  cur.parcels.eachLayer(l=>{ if(!found && String(l.feature.properties.지번)===jib && !road(l.feature)) found=l; });
+  if(found){ try{ map.fitBounds(found.getBounds().pad(1.2),{maxZoom:19}); }catch(_){}
+    if(found.openPopup) found.openPopup(); }
+});
 // ---------- 아파트 동(棟) 검색 — 이름(+동)으로 통/반 조회 ----------
 // 검색 정규화 — gen_apartment_index.norm 과 동일하게 유지(별칭 매칭 일치)
 const aptNorm = s => (s||'').toLowerCase().replace(/\s+/g,'').replace(/아파트/g,'')
