@@ -1146,8 +1146,13 @@ function buildHoleInfo(f){
     predTxt=`<small style="color:#555">${row.비고}</small>`;
     btns=`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${t}')">✏️ ${t}통으로 넣기 <small>(추정)</small></button>`
        + `<button class="msdraw msalt" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 다른 통으로…</button>`; }
-  else { const warn=(row&&row.본번갈림)?`<small style="color:#c0392b">⚠️ ${row.비고}</small><br>`:'';
-    predTxt=warn+'주변 통: '+cands.map(c=>`<b>${c.통}통</b> <small>${c.pct}%</small>`).join(' · ')+(cands.length>=2?' <small>— 골라 넣으세요</small>':'');
+  else if(row&&row.본번갈림){                       // 근처가 여러 통에 걸침 — '이 지번이 두 통에 다 있다'는 오해 없게 서술
+    const list=cands.map(c=>`${c.통}통`).join('·');
+    predTxt=`<small>근처가 <b>${list}</b>이라, 어느 통인지 <b>확인한 뒤</b> 골라 넣으세요.</small>`;
+    btns=cands.map(c=>`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${c.통}')">✏️ ${c.통}통으로 넣기</button>`).join('')
+       + `<button class="msdraw msalt" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 다른 통으로…</button>`; }
+  else {
+    predTxt='주변 통: '+cands.map(c=>`<b>${c.통}통</b> <small>${c.pct}%</small>`).join(' · ')+(cands.length>=2?' <small>— 골라 넣으세요</small>':'');
     btns=cands.map(c=>`<button class="msdraw" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','${c.통}')">✏️ ${c.통}통으로 넣기 <small>(${c.pct}%)</small></button>`).join('')
        + `<button class="msdraw msalt" onclick="assignOmitted('${safe(bjd)}','${safe(jib)}','')">✏️ 다른 통으로…</button>`; }
   const html=`<div class="msinfo"><b class="t">${bjd} ${jib}</b> <span class="d">(${p.지목||'대'} · 별표 누락 의심)</span><br>통이 안 정해진 땅이에요. ${predTxt}${btns}</div>`;
@@ -1320,7 +1325,7 @@ function predictOmittedTong(parcels, unassigned){
       const cands=splitTongs.map(t=>({통:t, n:cnt[t], pct:Math.round(cnt[t]/grp.length*100)})).sort((a,b)=>b.n-a.n);
       const candStr=cands.map(c=>`${c.통}통(${c.pct}%)`).join(' · ');
       grp.forEach(r=>{ r.후보=cands.slice(0,4); r.후보표시=candStr; r.추정통=''; r.roadOnly=false; r.본번갈림=true;
-        r.등급=(r.등급==='불확실')?'불확실':'참고'; r.비고='같은 본번이 '+splitTongs.slice().sort((a,b)=>a-b).join('·')+'통으로 갈림 — 확인'; });
+        r.등급=(r.등급==='불확실')?'불확실':'참고'; r.비고='별표에 없는 땅 — 근처 '+splitTongs.slice().sort((a,b)=>a-b).join('·')+'통 중 확인 필요'; });
     } else if(Object.keys(landCnt).length===1){             // 대지 근거가 한 통뿐 → 본번 일관. 도로만/불일치 형제 필지를 그 통으로 추정(가짜 갈림 없음)
       const t=+Object.keys(landCnt)[0];
       grp.forEach(r=>{ if(r.roadOnly || r.후보[0].통!==t){ r.추정통=t; r.후보=[{통:t, n:1, pct:100}]; r.후보표시=t+'통(추정)'; r.roadOnly=false; r.본번보정=true;
