@@ -193,7 +193,7 @@
 
   <label>② 주소·지번·통 검색</label>
   <div class="row tight">
-    <input id="q" placeholder="도로명·지번·아파트·통(예: 군자동 15통)" style="flex:1"/>
+    <input id="q" placeholder="도로명·지번·아파트·통" style="flex:1"/>
     <button class="b primebtn" id="go">검색</button>
   </div>
 
@@ -994,7 +994,7 @@ function showTongResult(t, dongName){
   const bjdCnt={}; rows.forEach(r=>{ bjdCnt[r.bjd]=(bjdCnt[r.bjd]||0)+1; });
   const bjds=Object.keys(bjdCnt).filter(Boolean).sort((a,b)=>bjdCnt[b]-bjdCnt[a]);
   const multiBjd = bjds.length>1;
-  const bjdSummary = bjds.map(bd=>`${bd} <b>${bjdCnt[bd]}</b>`).join(' · ');
+  const bjdSummary = bjds.join(' · ');   // 법정동명만(지번 개수는 위 헤더에 이미 있음 → 옆 숫자 제거)
   const byBan={}; rows.forEach(r=>{ (byBan[r.ban]=byBan[r.ban]||[]).push(r); });
   const banKeys=Object.keys(byBan).map(Number).sort((a,b)=>a-b);
   const lab=k=> k===0?'반미상':k+'반';
