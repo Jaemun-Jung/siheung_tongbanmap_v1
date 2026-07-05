@@ -20,7 +20,7 @@ from collections import defaultdict
 
 # ===================== 설정(공유 기본값) =====================
 # 동별 값은 config.json 에서 로드(--config). 아래는 출처가 같은 '도시 단위' 기본값만 남긴다.
-DEFAULT_SHP_PATH = "LSMD_CONT_LDREG_41390_202606.shp"   # 시흥시(41390) 연속지적도 2026.06
+DEFAULT_SHP_PATH = "LSMD_CONT_LDREG_41390_202607.shp"   # 시흥시(41390) 연속지적도 2026.07
 
 # 연속지적도 필드명 (출처마다 다름). 자동탐지하되 필요시 직접 지정.
 PNU_FIELD_CANDIDATES   = ["PNU", "pnu", "A1", "ADDR_PNU", "pnu_cd"]

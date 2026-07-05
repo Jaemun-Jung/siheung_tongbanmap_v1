@@ -115,7 +115,7 @@
     "n_missing": 0,
     "missing": [],
     "n_conflict": 20,
-    "n_unassigned": 2283
+    "n_unassigned": 2297
   },
   "31150530": {
     "dong": "신현동",
@@ -292,7 +292,7 @@
       }
     ],
     "n_conflict": 3,
-    "n_unassigned": 6721
+    "n_unassigned": 6722
   },
   "31150560": {
     "dong": "목감동",
@@ -356,7 +356,7 @@
     "n_missing": 0,
     "missing": [],
     "n_conflict": 71,
-    "n_unassigned": 2770
+    "n_unassigned": 2853
   },
   "31150611": {
     "dong": "정왕2동",
@@ -484,7 +484,7 @@
       }
     ],
     "n_conflict": 12,
-    "n_unassigned": 12981
+    "n_unassigned": 12980
   },
   "31150620": {
     "dong": "정왕3동",
@@ -530,7 +530,7 @@
       }
     ],
     "n_conflict": 7,
-    "n_unassigned": 10743
+    "n_unassigned": 10742
   },
   "31150640": {
     "dong": "정왕본동",
@@ -567,7 +567,7 @@
       }
     ],
     "n_conflict": 2,
-    "n_unassigned": 6997
+    "n_unassigned": 6996
   },
   "31150650": {
     "dong": "정왕1동",
@@ -622,7 +622,7 @@
       }
     ],
     "n_conflict": 6,
-    "n_unassigned": 10558
+    "n_unassigned": 10557
   },
   "31150670": {
     "dong": "능곡동",
@@ -742,7 +742,7 @@
       }
     ],
     "n_conflict": 2,
-    "n_unassigned": 3632
+    "n_unassigned": 3628
   },
   "31150700": {
     "dong": "연성동",
@@ -999,7 +999,7 @@
       }
     ],
     "n_conflict": 11,
-    "n_unassigned": 1855
+    "n_unassigned": 1863
   },
   "31150720": {
     "dong": "정왕4동",
@@ -1054,7 +1054,7 @@
       }
     ],
     "n_conflict": 5,
-    "n_unassigned": 12944
+    "n_unassigned": 12943
   },
   "31150740": {
     "dong": "배곧1동",
@@ -1419,6 +1419,6 @@
       }
     ],
     "n_conflict": 2,
-    "n_unassigned": 12275
+    "n_unassigned": 12274
   }
 }

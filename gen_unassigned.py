@@ -10,7 +10,7 @@ import glob, json, os, re
 import geopandas as gpd
 import numpy as np
 
-SHP = "LSMD_CONT_LDREG_41390_202606.shp"
+SHP = "LSMD_CONT_LDREG_41390_202607.shp"
 
 
 def canon_pnu(pnu):

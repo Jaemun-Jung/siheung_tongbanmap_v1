@@ -1,9 +1,10 @@
 # 대용량 원본 연속지적도(공공데이터포털/국가공간정보포털에서 다운로드 — README 참고)
-LSMD_CONT_LDREG_41390_202606.shp
-LSMD_CONT_LDREG_41390_202606.dbf
-LSMD_CONT_LDREG_41390_202606.shx
-LSMD_CONT_LDREG_41390_202606.prj
-LSMD_CONT_LDREG_41390_202606.cpg
+# 버전(연월) 무관하게 모두 무시 → 지적도 갱신 시 .gitignore 수정 불필요
+LSMD_CONT_LDREG_41390_*.shp
+LSMD_CONT_LDREG_41390_*.dbf
+LSMD_CONT_LDREG_41390_*.shx
+LSMD_CONT_LDREG_41390_*.prj
+LSMD_CONT_LDREG_41390_*.cpg
 LSMD_CONT_LDREG_경기_시흥시.zip
 
 # 로컬 도구 설정
